@@ -3,7 +3,7 @@ import express from "express";
 import path from "path";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { connect } from "@tidbcloud/serverless";
-import { createServer as createViteServer } from "vite";
+// XÓA: Import vite tĩnh đã được loại bỏ để tránh làm crash Vercel Production
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -20,24 +20,24 @@ if (!/^[A-Za-z0-9_]+$/.test(DB_NAME)) {
 app.use(express.json());
 
 // Khởi tạo kết nối TiDB Cloud Serverless qua HTTP Client
-const pool = connect({
-  host: DB_HOST,
-  username: DB_USER,
-  password: DB_PASSWORD,
-  database: DB_NAME,
+const config = {
+  host: process.env.DB_HOST,
+  username: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
   port: Number(process.env.DB_PORT) || 4000,
-});
+};
 
-async function testConnection() {
-  try {
-    await pool.execute("SELECT 1");
-    console.log("✅ TiDB connected via HTTP!");
-  } catch (err) {
-    console.error("❌ DB ERROR:", err);
-  }
+const pool = connect(config);
+
+// ====== HELPER ĐỂ ĐỌC DATA AN TOÀN TỪ TiDB ======
+// Đảm bảo không bị crash khi TiDB trả về Object { rows: [] } thay vì Array
+function getRows<T>(result: any): T[] {
+  if (Array.isArray(result)) return result;
+  if (result && Array.isArray(result.rows)) return result.rows;
+  if (Array.isArray(result?.[0])) return result[0];
+  return [];
 }
-
-testConnection();
 
 type UserRole = "admin" | "customer";
 
@@ -213,7 +213,7 @@ function serializeBook(book: BookRow): PublicBook {
 }
 
 async function columnExists(tableName: string, columnName: string) {
-  const rows = (await pool.execute(
+  const rawResult = await pool.execute(
     `
       SELECT 1
       FROM information_schema.COLUMNS
@@ -223,8 +223,9 @@ async function columnExists(tableName: string, columnName: string) {
       LIMIT 1
     `,
     [DB_NAME, tableName, columnName],
-  )) as any[];
+  );
 
+  const rows = getRows(rawResult);
   return rows.length > 0;
 }
 
@@ -333,9 +334,10 @@ async function setupDatabase() {
     )
   `);
 
-  const adminRows = (await pool.execute(
+  const rawAdmin = await pool.execute(
     "SELECT id FROM users WHERE username = 'admin' LIMIT 1",
-  )) as any[];
+  );
+  const adminRows = getRows(rawAdmin);
 
   if (adminRows.length === 0) {
     await pool.execute(
@@ -355,7 +357,7 @@ async function setupDatabase() {
 }
 
 async function getUserById(userId: number) {
-  const rows = (await pool.execute(
+  const rawResult = await pool.execute(
     `
       SELECT id, username, password, full_name, email, role, created_at
       FROM users
@@ -363,8 +365,8 @@ async function getUserById(userId: number) {
       LIMIT 1
     `,
     [userId],
-  )) as UserRow[];
-
+  );
+  const rows = getRows<UserRow>(rawResult);
   return rows[0] ?? null;
 }
 
@@ -372,27 +374,21 @@ async function requireAuth(req: express.Request, res: express.Response) {
   const token = getBearerToken(req.headers.authorization);
 
   if (!token) {
-    res.status(401).json({
-      message: "Missing token",
-    });
+    res.status(401).json({ message: "Missing token" });
     return null;
   }
 
   const payload = parseAuthToken(token);
 
   if (!payload) {
-    res.status(401).json({
-      message: "Invalid token",
-    });
+    res.status(401).json({ message: "Invalid token" });
     return null;
   }
 
   const user = await getUserById(payload.id);
 
   if (!user) {
-    res.status(401).json({
-      message: "User not found",
-    });
+    res.status(401).json({ message: "User not found" });
     return null;
   }
 
@@ -407,9 +403,7 @@ async function requireAdmin(req: express.Request, res: express.Response) {
   }
 
   if (user.role !== "admin") {
-    res.status(403).json({
-      message: "Admin access required",
-    });
+    res.status(403).json({ message: "Admin access required" });
     return null;
   }
 
@@ -417,19 +411,19 @@ async function requireAdmin(req: express.Request, res: express.Response) {
 }
 
 async function fetchBooks() {
-  const rows = (await pool.execute(
+  const rawResult = await pool.execute(
     `
       SELECT id, title, author, description, price, cover, stock, created_at
       FROM books
       ORDER BY created_at DESC, id DESC
     `,
-  )) as BookRow[];
-
+  );
+  const rows = getRows<BookRow>(rawResult);
   return rows.map(serializeBook);
 }
 
 async function fetchOrders(whereClause = "1 = 1", params: unknown[] = []) {
-  const rows = (await pool.execute(
+  const rawResult = await pool.execute(
     `
       SELECT
         o.id AS order_id,
@@ -455,8 +449,9 @@ async function fetchOrders(whereClause = "1 = 1", params: unknown[] = []) {
       ORDER BY o.created_at DESC, o.id DESC, oi.id ASC
     `,
     params,
-  )) as OrderJoinRow[];
+  );
 
+  const rows = getRows<OrderJoinRow>(rawResult);
   const orderMap = new Map<number, OrderResponse>();
 
   for (const row of rows) {
@@ -503,33 +498,14 @@ function normalizeBookPayload(body: Record<string, unknown>) {
   const price = Number(body.price);
   const stock = Number(body.stock);
 
-  if (!title) {
-    return {
-      error: "Title is required",
-    };
-  }
-
-  if (!Number.isFinite(price) || price <= 0) {
-    return {
-      error: "Price must be greater than 0",
-    };
-  }
-
-  if (!Number.isInteger(stock) || stock < 0) {
-    return {
-      error: "Stock must be a non-negative integer",
-    };
-  }
+  if (!title) return { error: "Title is required" };
+  if (!Number.isFinite(price) || price <= 0)
+    return { error: "Price must be greater than 0" };
+  if (!Number.isInteger(stock) || stock < 0)
+    return { error: "Stock must be a non-negative integer" };
 
   return {
-    value: {
-      title,
-      author,
-      description,
-      cover,
-      price,
-      stock,
-    },
+    value: { title, author, description, cover, price, stock },
   };
 }
 
@@ -543,48 +519,38 @@ app.post("/api/auth/register", async (req, res) => {
       .toLowerCase();
 
     if (!username || !password) {
-      return res.status(400).json({
-        message: "Username and password are required",
-      });
+      return res
+        .status(400)
+        .json({ message: "Username and password are required" });
     }
 
-    const usernameRows = (await pool.execute(
+    const rawUser = await pool.execute(
       "SELECT id FROM users WHERE username = ? LIMIT 1",
       [username],
-    )) as any[];
-
-    if (usernameRows.length > 0) {
-      return res.status(400).json({
-        message: "Username already exists",
-      });
+    );
+    if (getRows(rawUser).length > 0) {
+      return res.status(400).json({ message: "Username already exists" });
     }
 
     if (email) {
-      const emailRows = (await pool.execute(
+      const rawEmail = await pool.execute(
         "SELECT id FROM users WHERE email = ? LIMIT 1",
         [email],
-      )) as any[];
-
-      if (emailRows.length > 0) {
-        return res.status(400).json({
-          message: "Email already exists",
-        });
+      );
+      if (getRows(rawEmail).length > 0) {
+        return res.status(400).json({ message: "Email already exists" });
       }
     }
 
     const result = (await pool.execute(
-      `
-        INSERT INTO users (username, password, full_name, email, role)
-        VALUES (?, ?, ?, ?, 'customer')
-      `,
+      `INSERT INTO users (username, password, full_name, email, role) VALUES (?, ?, ?, ?, 'customer')`,
       [username, password, fullName || username, email || null],
     )) as any;
 
-    const user = await getUserById(result.insertId);
+    const insertId = Number(result.lastInsertId || result.insertId);
+    const user = await getUserById(insertId);
 
-    if (!user) {
-      throw new Error("User creation failed");
-    }
+    if (!user) throw new Error("User creation failed");
 
     res.status(201).json({
       message: "User registered successfully",
@@ -593,9 +559,7 @@ app.post("/api/auth/register", async (req, res) => {
     });
   } catch (error) {
     console.error(error);
-    res.status(500).json({
-      message: "Could not connect to the database",
-    });
+    res.status(500).json({ message: "Could not connect to the database" });
   }
 });
 
@@ -604,7 +568,7 @@ app.post("/api/auth/login", async (req, res) => {
     const username = String(req.body.username ?? "").trim();
     const password = String(req.body.password ?? "").trim();
 
-    const rows = (await pool.execute(
+    const rawResult = await pool.execute(
       `
         SELECT id, username, password, full_name, email, role, created_at
         FROM users
@@ -612,12 +576,12 @@ app.post("/api/auth/login", async (req, res) => {
         LIMIT 1
       `,
       [username, password],
-    )) as UserRow[];
+    );
+
+    const rows = getRows<UserRow>(rawResult);
 
     if (rows.length === 0) {
-      return res.status(401).json({
-        message: "Invalid credentials",
-      });
+      return res.status(401).json({ message: "Invalid credentials" });
     }
 
     const user = rows[0];
@@ -629,36 +593,25 @@ app.post("/api/auth/login", async (req, res) => {
     });
   } catch (error) {
     console.error(error);
-    res.status(500).json({
-      message: "Could not connect to the database",
-    });
+    res.status(500).json({ message: "Could not connect to the database" });
   }
 });
 
 app.get("/api/auth/me", async (req, res) => {
   try {
     const user = await requireAuth(req, res);
-
-    if (!user) {
-      return;
-    }
-
+    if (!user) return;
     res.json(serializeUser(user));
   } catch (error) {
     console.error(error);
-    res.status(500).json({
-      message: "Could not connect to the database",
-    });
+    res.status(500).json({ message: "Could not connect to the database" });
   }
 });
 
 app.put("/api/users/me", async (req, res) => {
   try {
     const currentUser = await requireAuth(req, res);
-
-    if (!currentUser) {
-      return;
-    }
+    if (!currentUser) return;
 
     const username = String(req.body.username ?? currentUser.username).trim();
     const fullName = String(
@@ -669,12 +622,10 @@ app.put("/api/users/me", async (req, res) => {
       .toLowerCase();
 
     if (!username) {
-      return res.status(400).json({
-        message: "Username is required",
-      });
+      return res.status(400).json({ message: "Username is required" });
     }
 
-    const conflictRows = (await pool.execute(
+    const rawConflict = await pool.execute(
       `
         SELECT id
         FROM users
@@ -683,12 +634,14 @@ app.put("/api/users/me", async (req, res) => {
         LIMIT 1
       `,
       [username, email, email, currentUser.id],
-    )) as any[];
+    );
 
-    if (conflictRows.length > 0) {
-      return res.status(400).json({
-        message: "Username or email is already used by another account",
-      });
+    if (getRows(rawConflict).length > 0) {
+      return res
+        .status(400)
+        .json({
+          message: "Username or email is already used by another account",
+        });
     }
 
     await pool.execute(
@@ -701,10 +654,7 @@ app.put("/api/users/me", async (req, res) => {
     );
 
     const refreshedUser = await getUserById(currentUser.id);
-
-    if (!refreshedUser) {
-      throw new Error("Failed to reload user");
-    }
+    if (!refreshedUser) throw new Error("Failed to reload user");
 
     res.json({
       message: "Profile updated successfully",
@@ -712,9 +662,7 @@ app.put("/api/users/me", async (req, res) => {
     });
   } catch (error) {
     console.error(error);
-    res.status(500).json({
-      message: "Could not update profile",
-    });
+    res.status(500).json({ message: "Could not update profile" });
   }
 });
 
@@ -723,9 +671,7 @@ app.get("/api/books", async (_req, res) => {
     res.json(await fetchBooks());
   } catch (error) {
     console.error(error);
-    res.status(500).json({
-      message: "Could not load books",
-    });
+    res.status(500).json({ message: "Could not load books" });
   }
 });
 
@@ -734,38 +680,29 @@ app.get("/api/books/:id", async (req, res) => {
     const bookId = Number(req.params.id);
 
     if (!Number.isInteger(bookId) || bookId <= 0) {
-      return res.status(400).json({
-        message: "Invalid book id",
-      });
+      return res.status(400).json({ message: "Invalid book id" });
     }
 
-    const rows = (await pool.execute(
-      `
-        SELECT id, title, author, description, price, cover, stock, created_at
-        FROM books
-        WHERE id = ?
-        LIMIT 1
-      `,
+    const rawResult = await pool.execute(
+      `SELECT id, title, author, description, price, cover, stock, created_at FROM books WHERE id = ? LIMIT 1`,
       [bookId],
-    )) as BookRow[];
+    );
+
+    const rows = getRows<BookRow>(rawResult);
 
     if (rows.length === 0) {
-      return res.status(404).json({
-        message: "Book not found",
-      });
+      return res.status(404).json({ message: "Book not found" });
     }
 
     res.json(serializeBook(rows[0]));
   } catch (error) {
     console.error(error);
-    res.status(500).json({
-      message: "Could not load book details",
-    });
+    res.status(500).json({ message: "Could not load book details" });
   }
 });
 
-// SỬA: Viết lại API Order sang dạng HTTP Transaction an toàn, tương thích 100% với TiDB Serverless
 app.post("/api/orders", async (req, res) => {
+  let tx: any = null;
   try {
     const currentUser = await requireAuth(req, res);
     if (!currentUser) return;
@@ -794,111 +731,102 @@ app.post("/api/orders", async (req, res) => {
     const bookIds = Array.from(quantities.keys());
     const placeholders = bookIds.map(() => "?").join(", ");
 
-    // Thực thi thông qua pool.transaction tích hợp sẵn của TiDB HTTP Client
-    const orderId = await (pool as any).tx(async (tx: any) => {
-      const bookRows = (await tx.execute(
-        `SELECT id, title, author, description, price, cover, stock, created_at FROM books WHERE id IN (${placeholders})`,
-        bookIds,
-      )) as BookRow[];
+    // KIỂU TRANSACTION CHUẨN CỦA TiDB HTTP CLIENT
+    tx = await (pool as any).transaction();
 
-      const booksById = new Map(bookRows.map((book) => [book.id, book]));
-      let totalAmount = 0;
-      const orderItems: Array<{
-        book: BookRow;
-        quantity: number;
-        price: number;
-      }> = [];
+    const rawBooks = await tx.execute(
+      `SELECT id, title, author, description, price, cover, stock, created_at FROM books WHERE id IN (${placeholders})`,
+      bookIds,
+    );
+    const bookRows = getRows<BookRow>(rawBooks);
 
-      for (const [bookId, quantity] of quantities.entries()) {
-        const book = booksById.get(bookId);
-        if (!book) throw new Error(`Book ${bookId} no longer exists`);
-        if (book.stock < quantity) {
-          throw new Error(`Only ${book.stock} copies left for "${book.title}"`);
-        }
+    const booksById = new Map(bookRows.map((book) => [book.id, book]));
+    let totalAmount = 0;
+    const orderItems: Array<{
+      book: BookRow;
+      quantity: number;
+      price: number;
+    }> = [];
 
-        const price = Number(book.price);
-        totalAmount += price * quantity;
-        orderItems.push({ book, quantity, price });
+    for (const [bookId, quantity] of quantities.entries()) {
+      const book = booksById.get(bookId);
+      if (!book) throw new Error(`Book ${bookId} no longer exists`);
+      if (book.stock < quantity) {
+        throw new Error(`Only ${book.stock} copies left for "${book.title}"`);
       }
 
-      const orderResult = (await tx.execute(
-        `INSERT INTO orders (user_id, total_amount, status) VALUES (?, ?, 'completed')`,
-        [currentUser.id, totalAmount],
-      )) as any;
+      const price = Number(book.price);
+      totalAmount += price * quantity;
+      orderItems.push({ book, quantity, price });
+    }
 
-      // SỬA TẠI ĐÂY: TiDB Serverless SDK trả về lastInsertId thay vì insertId
-      const insertedOrderId = orderResult.lastInsertId || orderResult.insertId;
+    const orderResult = (await tx.execute(
+      `INSERT INTO orders (user_id, total_amount, status) VALUES (?, ?, 'completed')`,
+      [currentUser.id, totalAmount],
+    )) as any;
 
-      for (const item of orderItems) {
-        await tx.execute(
-          `INSERT INTO order_items (order_id, book_id, title_snapshot, author_snapshot, cover_snapshot, price_at_purchase, quantity) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-          [
-            insertedOrderId,
-            item.book.id,
-            item.book.title,
-            item.book.author ?? null,
-            item.book.cover ?? null,
-            item.price,
-            item.quantity,
-          ],
-        );
+    const insertedOrderId = Number(
+      orderResult.lastInsertId || orderResult.insertId,
+    );
 
-        await tx.execute("UPDATE books SET stock = stock - ? WHERE id = ?", [
-          item.quantity,
+    for (const item of orderItems) {
+      await tx.execute(
+        `INSERT INTO order_items (order_id, book_id, title_snapshot, author_snapshot, cover_snapshot, price_at_purchase, quantity) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [
+          insertedOrderId,
           item.book.id,
-        ]);
-      }
+          item.book.title,
+          item.book.author ?? null,
+          item.book.cover ?? null,
+          item.price,
+          item.quantity,
+        ],
+      );
+      await tx.execute("UPDATE books SET stock = stock - ? WHERE id = ?", [
+        item.quantity,
+        item.book.id,
+      ]);
+    }
 
-      return insertedOrderId;
-    });
+    // Cam kết ghi dữ liệu nếu mọi thứ thành công
+    await tx.commit();
 
-    const orders = await fetchOrders("o.id = ?", [orderId]);
+    const orders = await fetchOrders("o.id = ?", [insertedOrderId]);
     res.status(201).json({
       message: "Order placed successfully",
       order: orders[0] ?? null,
     });
   } catch (error: any) {
+    if (tx) {
+      await tx.rollback().catch(console.error); // Rollback nếu có lỗi xảy ra
+    }
     console.error(error);
-    res.status(400).json({
-      message: error.message || "Could not complete checkout",
-    });
+    res
+      .status(400)
+      .json({ message: error.message || "Could not complete checkout" });
   }
 });
 
 app.get("/api/orders/me", async (req, res) => {
   try {
     const currentUser = await requireAuth(req, res);
-
-    if (!currentUser) {
-      return;
-    }
-
+    if (!currentUser) return;
     res.json(await fetchOrders("o.user_id = ?", [currentUser.id]));
   } catch (error) {
     console.error(error);
-    res.status(500).json({
-      message: "Could not load orders",
-    });
+    res.status(500).json({ message: "Could not load orders" });
   }
 });
 
 app.get("/api/admin/users", async (req, res) => {
   try {
     const adminUser = await requireAdmin(req, res);
+    if (!adminUser) return;
 
-    if (!adminUser) {
-      return;
-    }
-
-    const rows = (await pool.execute(
+    const rawResult = await pool.execute(
       `
         SELECT
-          u.id,
-          u.username,
-          u.full_name,
-          u.email,
-          u.role,
-          u.created_at,
+          u.id, u.username, u.full_name, u.email, u.role, u.created_at,
           COUNT(o.id) AS order_count,
           COALESCE(SUM(o.total_amount), 0) AS total_spent
         FROM users u
@@ -906,53 +834,43 @@ app.get("/api/admin/users", async (req, res) => {
         GROUP BY u.id, u.username, u.full_name, u.email, u.role, u.created_at
         ORDER BY u.created_at DESC, u.id DESC
       `,
-    )) as UserSummaryRow[];
+    );
+
+    const rows = getRows<UserSummaryRow>(rawResult);
 
     res.json(
       rows.map((row) => ({
-        ...serializeUser({
-          ...row,
-          password: "",
-        } as UserRow),
+        ...serializeUser({ ...row, password: "" } as UserRow),
         orderCount: Number(row.order_count),
         totalSpent: Number(row.total_spent),
       })),
     );
   } catch (error) {
     console.error(error);
-    res.status(500).json({
-      message: "Could not load user list",
-    });
+    res.status(500).json({ message: "Could not load user list" });
   }
 });
 
 app.patch("/api/admin/users/:id/role", async (req, res) => {
   try {
     const adminUser = await requireAdmin(req, res);
-
-    if (!adminUser) {
-      return;
-    }
+    if (!adminUser) return;
 
     const userId = Number(req.params.id);
     const role = req.body.role as UserRole;
 
     if (!Number.isInteger(userId) || userId <= 0) {
-      return res.status(400).json({
-        message: "Invalid user id",
-      });
+      return res.status(400).json({ message: "Invalid user id" });
     }
 
     if (role !== "admin" && role !== "customer") {
-      return res.status(400).json({
-        message: "Invalid role",
-      });
+      return res.status(400).json({ message: "Invalid role" });
     }
 
     if (userId === adminUser.id && role !== "admin") {
-      return res.status(400).json({
-        message: "You cannot remove your own admin role",
-      });
+      return res
+        .status(400)
+        .json({ message: "You cannot remove your own admin role" });
     }
 
     await pool.execute("UPDATE users SET role = ? WHERE id = ?", [
@@ -962,9 +880,7 @@ app.patch("/api/admin/users/:id/role", async (req, res) => {
     const updatedUser = await getUserById(userId);
 
     if (!updatedUser) {
-      return res.status(404).json({
-        message: "User not found",
-      });
+      return res.status(404).json({ message: "User not found" });
     }
 
     res.json({
@@ -973,63 +889,46 @@ app.patch("/api/admin/users/:id/role", async (req, res) => {
     });
   } catch (error) {
     console.error(error);
-    res.status(500).json({
-      message: "Could not update user role",
-    });
+    res.status(500).json({ message: "Could not update user role" });
   }
 });
 
 app.get("/api/admin/orders", async (req, res) => {
   try {
     const adminUser = await requireAdmin(req, res);
-
-    if (!adminUser) {
-      return;
-    }
-
+    if (!adminUser) return;
     res.json(await fetchOrders());
   } catch (error) {
     console.error(error);
-    res.status(500).json({
-      message: "Could not load orders",
-    });
+    res.status(500).json({ message: "Could not load orders" });
   }
 });
 
 app.post("/api/admin/books", async (req, res) => {
   try {
     const adminUser = await requireAdmin(req, res);
-
-    if (!adminUser) {
-      return;
-    }
+    if (!adminUser) return;
 
     const parsed = normalizeBookPayload(req.body as Record<string, unknown>);
-
     if ("error" in parsed) {
-      return res.status(400).json({
-        message: parsed.error,
-      });
+      return res.status(400).json({ message: parsed.error });
     }
 
     const { title, author, description, price, cover, stock } = parsed.value;
 
     const result = (await pool.execute(
-      `
-        INSERT INTO books (title, author, description, price, cover, stock)
-        VALUES (?, ?, ?, ?, ?, ?)
-      `,
+      `INSERT INTO books (title, author, description, price, cover, stock) VALUES (?, ?, ?, ?, ?, ?)`,
       [title, author || null, description || null, price, cover || null, stock],
     )) as any;
 
-    const rows = (await pool.execute(
-      `
-        SELECT id, title, author, description, price, cover, stock, created_at
-        FROM books
-        WHERE id = ?
-      `,
-      [result.insertId],
-    )) as BookRow[];
+    const insertId = Number(result.lastInsertId || result.insertId);
+
+    const rawResult = await pool.execute(
+      `SELECT id, title, author, description, price, cover, stock, created_at FROM books WHERE id = ?`,
+      [insertId],
+    );
+
+    const rows = getRows<BookRow>(rawResult);
 
     res.status(201).json({
       message: "Book created successfully",
@@ -1037,44 +936,29 @@ app.post("/api/admin/books", async (req, res) => {
     });
   } catch (error) {
     console.error(error);
-    res.status(500).json({
-      message: "Could not create book",
-    });
+    res.status(500).json({ message: "Could not create book" });
   }
 });
 
 app.put("/api/admin/books/:id", async (req, res) => {
   try {
     const adminUser = await requireAdmin(req, res);
-
-    if (!adminUser) {
-      return;
-    }
+    if (!adminUser) return;
 
     const bookId = Number(req.params.id);
-
     if (!Number.isInteger(bookId) || bookId <= 0) {
-      return res.status(400).json({
-        message: "Invalid book id",
-      });
+      return res.status(400).json({ message: "Invalid book id" });
     }
 
     const parsed = normalizeBookPayload(req.body as Record<string, unknown>);
-
     if ("error" in parsed) {
-      return res.status(400).json({
-        message: parsed.error,
-      });
+      return res.status(400).json({ message: parsed.error });
     }
 
     const { title, author, description, price, cover, stock } = parsed.value;
 
     await pool.execute(
-      `
-        UPDATE books
-        SET title = ?, author = ?, description = ?, price = ?, cover = ?, stock = ?
-        WHERE id = ?
-      `,
+      `UPDATE books SET title = ?, author = ?, description = ?, price = ?, cover = ?, stock = ? WHERE id = ?`,
       [
         title,
         author || null,
@@ -1086,19 +970,15 @@ app.put("/api/admin/books/:id", async (req, res) => {
       ],
     );
 
-    const rows = (await pool.execute(
-      `
-        SELECT id, title, author, description, price, cover, stock, created_at
-        FROM books
-        WHERE id = ?
-      `,
+    const rawResult = await pool.execute(
+      `SELECT id, title, author, description, price, cover, stock, created_at FROM books WHERE id = ?`,
       [bookId],
-    )) as BookRow[];
+    );
+
+    const rows = getRows<BookRow>(rawResult);
 
     if (rows.length === 0) {
-      return res.status(404).json({
-        message: "Book not found",
-      });
+      return res.status(404).json({ message: "Book not found" });
     }
 
     res.json({
@@ -1107,38 +987,25 @@ app.put("/api/admin/books/:id", async (req, res) => {
     });
   } catch (error) {
     console.error(error);
-    res.status(500).json({
-      message: "Could not update book",
-    });
+    res.status(500).json({ message: "Could not update book" });
   }
 });
 
 app.delete("/api/admin/books/:id", async (req, res) => {
   try {
     const adminUser = await requireAdmin(req, res);
-
-    if (!adminUser) {
-      return;
-    }
+    if (!adminUser) return;
 
     const bookId = Number(req.params.id);
-
     if (!Number.isInteger(bookId) || bookId <= 0) {
-      return res.status(400).json({
-        message: "Invalid book id",
-      });
+      return res.status(400).json({ message: "Invalid book id" });
     }
 
     await pool.execute("DELETE FROM books WHERE id = ?", [bookId]);
-
-    res.json({
-      message: "Book deleted successfully",
-    });
+    res.json({ message: "Book deleted successfully" });
   } catch (error) {
     console.error(error);
-    res.status(500).json({
-      message: "Could not delete book",
-    });
+    res.status(500).json({ message: "Could not delete book" });
   }
 });
 
@@ -1146,6 +1013,8 @@ async function startServer() {
   await setupDatabase();
 
   if (process.env.NODE_ENV !== "production") {
+    // SỬA: Dùng dynamic import cho vite để Vercel không bao giờ dòm ngó tới
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: {
         middlewareMode: true,
