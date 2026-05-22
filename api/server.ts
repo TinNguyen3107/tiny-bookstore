@@ -37,7 +37,7 @@ const pool = mysql.createPool({
   connectionLimit: 10,
 
   ssl: {
-    rejectUnauthorized: true,
+    
   },
 });
 
