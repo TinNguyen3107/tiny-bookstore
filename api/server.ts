@@ -2,14 +2,7 @@ import "dotenv/config";
 import express from "express";
 import path from "path";
 import { createHmac, timingSafeEqual } from "node:crypto";
-import mysql from "mysql2/promise";
-import fs from "fs";
-
-import type {
-  PoolConnection,
-  ResultSetHeader,
-  RowDataPacket,
-} from "mysql2/promise";
+import { connect } from "@tidbcloud/serverless";
 import { createServer as createViteServer } from "vite";
 
 const app = express();
@@ -26,26 +19,19 @@ if (!/^[A-Za-z0-9_]+$/.test(DB_NAME)) {
 
 app.use(express.json());
 
-const pool = mysql.createPool({
-  host: process.env.DB_HOST,
-  port: Number(process.env.DB_PORT),
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
-
-  waitForConnections: true,
-  connectionLimit: 10,
-
-  ssl: {
-    
-  },
+// Khởi tạo kết nối TiDB Cloud Serverless qua HTTP Client
+const pool = connect({
+  host: DB_HOST,
+  username: DB_USER,
+  password: DB_PASSWORD,
+  database: DB_NAME,
+  port: Number(process.env.DB_PORT) || 4000,
 });
 
 async function testConnection() {
   try {
-    const conn = await pool.getConnection();
-    console.log("✅ TiDB connected!");
-    conn.release();
+    await pool.execute("SELECT 1");
+    console.log("✅ TiDB connected via HTTP!");
   } catch (err) {
     console.error("❌ DB ERROR:", err);
   }
@@ -59,7 +45,7 @@ interface TokenPayload {
   id: number;
 }
 
-interface UserRow extends RowDataPacket {
+interface UserRow {
   id: number;
   username: string;
   password: string;
@@ -78,7 +64,7 @@ interface PublicUser {
   createdAt: string;
 }
 
-interface BookRow extends RowDataPacket {
+interface BookRow {
   id: number;
   title: string;
   author: string | null;
@@ -100,7 +86,7 @@ interface PublicBook {
   createdAt: string;
 }
 
-interface OrderJoinRow extends RowDataPacket {
+interface OrderJoinRow {
   order_id: number;
   user_id: number;
   total_amount: string | number;
@@ -136,7 +122,7 @@ interface OrderResponse {
   }>;
 }
 
-interface UserSummaryRow extends RowDataPacket {
+interface UserSummaryRow {
   id: number;
   username: string;
   full_name: string | null;
@@ -227,7 +213,7 @@ function serializeBook(book: BookRow): PublicBook {
 }
 
 async function columnExists(tableName: string, columnName: string) {
-  const [rows] = await pool.query<RowDataPacket[]>(
+  const rows = (await pool.execute(
     `
       SELECT 1
       FROM information_schema.COLUMNS
@@ -237,7 +223,7 @@ async function columnExists(tableName: string, columnName: string) {
       LIMIT 1
     `,
     [DB_NAME, tableName, columnName],
-  );
+  )) as any[];
 
   return rows.length > 0;
 }
@@ -248,12 +234,12 @@ async function ensureColumn(
   statement: string,
 ) {
   if (!(await columnExists(tableName, columnName))) {
-    await pool.query(statement);
+    await pool.execute(statement);
   }
 }
 
 async function setupDatabase() {
-  await pool.query(`
+  await pool.execute(`
     CREATE TABLE IF NOT EXISTS users (
       id INT AUTO_INCREMENT PRIMARY KEY,
       username VARCHAR(100) NOT NULL UNIQUE,
@@ -286,7 +272,7 @@ async function setupDatabase() {
     "ALTER TABLE users ADD COLUMN created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP AFTER role",
   );
 
-  await pool.query(`
+  await pool.execute(`
     CREATE TABLE IF NOT EXISTS books (
       id INT AUTO_INCREMENT PRIMARY KEY,
       title VARCHAR(255) NOT NULL,
@@ -315,7 +301,7 @@ async function setupDatabase() {
     "ALTER TABLE books ADD COLUMN created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP AFTER stock",
   );
 
-  await pool.query(`
+  await pool.execute(`
     CREATE TABLE IF NOT EXISTS orders (
       id INT AUTO_INCREMENT PRIMARY KEY,
       user_id INT NOT NULL,
@@ -328,7 +314,7 @@ async function setupDatabase() {
     )
   `);
 
-  await pool.query(`
+  await pool.execute(`
     CREATE TABLE IF NOT EXISTS order_items (
       id INT AUTO_INCREMENT PRIMARY KEY,
       order_id INT NOT NULL,
@@ -347,12 +333,12 @@ async function setupDatabase() {
     )
   `);
 
-  const [adminRows] = await pool.query<RowDataPacket[]>(
+  const adminRows = (await pool.execute(
     "SELECT id FROM users WHERE username = 'admin' LIMIT 1",
-  );
+  )) as any[];
 
   if (adminRows.length === 0) {
-    await pool.query(
+    await pool.execute(
       `
         INSERT INTO users (username, password, full_name, email, role)
         VALUES (?, ?, ?, ?, ?)
@@ -369,7 +355,7 @@ async function setupDatabase() {
 }
 
 async function getUserById(userId: number) {
-  const [rows] = await pool.query<UserRow[]>(
+  const rows = (await pool.execute(
     `
       SELECT id, username, password, full_name, email, role, created_at
       FROM users
@@ -377,7 +363,7 @@ async function getUserById(userId: number) {
       LIMIT 1
     `,
     [userId],
-  );
+  )) as UserRow[];
 
   return rows[0] ?? null;
 }
@@ -400,7 +386,7 @@ async function requireAuth(req: express.Request, res: express.Response) {
     });
     return null;
   }
-  
+
   const user = await getUserById(payload.id);
 
   if (!user) {
@@ -431,19 +417,19 @@ async function requireAdmin(req: express.Request, res: express.Response) {
 }
 
 async function fetchBooks() {
-  const [rows] = await pool.query<BookRow[]>(
+  const rows = (await pool.execute(
     `
       SELECT id, title, author, description, price, cover, stock, created_at
       FROM books
       ORDER BY created_at DESC, id DESC
     `,
-  );
+  )) as BookRow[];
 
   return rows.map(serializeBook);
 }
 
 async function fetchOrders(whereClause = "1 = 1", params: unknown[] = []) {
-  const [rows] = await pool.query<OrderJoinRow[]>(
+  const rows = (await pool.execute(
     `
       SELECT
         o.id AS order_id,
@@ -469,7 +455,7 @@ async function fetchOrders(whereClause = "1 = 1", params: unknown[] = []) {
       ORDER BY o.created_at DESC, o.id DESC, oi.id ASC
     `,
     params,
-  );
+  )) as OrderJoinRow[];
 
   const orderMap = new Map<number, OrderResponse>();
 
@@ -562,10 +548,10 @@ app.post("/api/auth/register", async (req, res) => {
       });
     }
 
-    const [usernameRows] = await pool.query<RowDataPacket[]>(
+    const usernameRows = (await pool.execute(
       "SELECT id FROM users WHERE username = ? LIMIT 1",
       [username],
-    );
+    )) as any[];
 
     if (usernameRows.length > 0) {
       return res.status(400).json({
@@ -574,10 +560,10 @@ app.post("/api/auth/register", async (req, res) => {
     }
 
     if (email) {
-      const [emailRows] = await pool.query<RowDataPacket[]>(
+      const emailRows = (await pool.execute(
         "SELECT id FROM users WHERE email = ? LIMIT 1",
         [email],
-      );
+      )) as any[];
 
       if (emailRows.length > 0) {
         return res.status(400).json({
@@ -586,13 +572,13 @@ app.post("/api/auth/register", async (req, res) => {
       }
     }
 
-    const [result] = await pool.query<ResultSetHeader>(
+    const result = (await pool.execute(
       `
         INSERT INTO users (username, password, full_name, email, role)
         VALUES (?, ?, ?, ?, 'customer')
       `,
       [username, password, fullName || username, email || null],
-    );
+    )) as any;
 
     const user = await getUserById(result.insertId);
 
@@ -607,7 +593,6 @@ app.post("/api/auth/register", async (req, res) => {
     });
   } catch (error) {
     console.error(error);
-
     res.status(500).json({
       message: "Could not connect to the database",
     });
@@ -619,7 +604,7 @@ app.post("/api/auth/login", async (req, res) => {
     const username = String(req.body.username ?? "").trim();
     const password = String(req.body.password ?? "").trim();
 
-    const [rows] = await pool.query<UserRow[]>(
+    const rows = (await pool.execute(
       `
         SELECT id, username, password, full_name, email, role, created_at
         FROM users
@@ -627,7 +612,7 @@ app.post("/api/auth/login", async (req, res) => {
         LIMIT 1
       `,
       [username, password],
-    );
+    )) as UserRow[];
 
     if (rows.length === 0) {
       return res.status(401).json({
@@ -644,7 +629,6 @@ app.post("/api/auth/login", async (req, res) => {
     });
   } catch (error) {
     console.error(error);
-
     res.status(500).json({
       message: "Could not connect to the database",
     });
@@ -662,7 +646,6 @@ app.get("/api/auth/me", async (req, res) => {
     res.json(serializeUser(user));
   } catch (error) {
     console.error(error);
-
     res.status(500).json({
       message: "Could not connect to the database",
     });
@@ -691,7 +674,7 @@ app.put("/api/users/me", async (req, res) => {
       });
     }
 
-    const [conflictRows] = await pool.query<RowDataPacket[]>(
+    const conflictRows = (await pool.execute(
       `
         SELECT id
         FROM users
@@ -700,7 +683,7 @@ app.put("/api/users/me", async (req, res) => {
         LIMIT 1
       `,
       [username, email, email, currentUser.id],
-    );
+    )) as any[];
 
     if (conflictRows.length > 0) {
       return res.status(400).json({
@@ -708,7 +691,7 @@ app.put("/api/users/me", async (req, res) => {
       });
     }
 
-    await pool.query(
+    await pool.execute(
       `
         UPDATE users
         SET username = ?, full_name = ?, email = ?
@@ -729,7 +712,6 @@ app.put("/api/users/me", async (req, res) => {
     });
   } catch (error) {
     console.error(error);
-
     res.status(500).json({
       message: "Could not update profile",
     });
@@ -741,7 +723,6 @@ app.get("/api/books", async (_req, res) => {
     res.json(await fetchBooks());
   } catch (error) {
     console.error(error);
-
     res.status(500).json({
       message: "Could not load books",
     });
@@ -758,7 +739,7 @@ app.get("/api/books/:id", async (req, res) => {
       });
     }
 
-    const [rows] = await pool.query<BookRow[]>(
+    const rows = (await pool.execute(
       `
         SELECT id, title, author, description, price, cover, stock, created_at
         FROM books
@@ -766,7 +747,7 @@ app.get("/api/books/:id", async (req, res) => {
         LIMIT 1
       `,
       [bookId],
-    );
+    )) as BookRow[];
 
     if (rows.length === 0) {
       return res.status(404).json({
@@ -777,168 +758,108 @@ app.get("/api/books/:id", async (req, res) => {
     res.json(serializeBook(rows[0]));
   } catch (error) {
     console.error(error);
-
     res.status(500).json({
       message: "Could not load book details",
     });
   }
 });
 
+// SỬA: Viết lại API Order sang dạng HTTP Transaction an toàn, tương thích 100% với TiDB Serverless
 app.post("/api/orders", async (req, res) => {
-  let connection: PoolConnection | null = null;
-
   try {
     const currentUser = await requireAuth(req, res);
-
-    if (!currentUser) {
-      return;
-    }
+    if (!currentUser) return;
 
     const incomingItems = Array.isArray(req.body.items) ? req.body.items : [];
-
     if (incomingItems.length === 0) {
-      return res.status(400).json({
-        message: "Your cart is empty",
-      });
+      return res.status(400).json({ message: "Your cart is empty" });
     }
 
     const quantities = new Map<number, number>();
-
     for (const rawItem of incomingItems) {
-      const bookId = Number((rawItem as Record<string, unknown>).bookId);
-      const quantity = Number((rawItem as Record<string, unknown>).quantity);
+      const bookId = Number((rawItem as any).bookId);
+      const quantity = Number((rawItem as any).quantity);
 
       if (!Number.isInteger(bookId) || bookId <= 0) {
-        return res.status(400).json({
-          message: "Invalid book id in cart",
-        });
+        return res.status(400).json({ message: "Invalid book id in cart" });
       }
-
       if (!Number.isInteger(quantity) || quantity <= 0) {
-        return res.status(400).json({
-          message: "Quantity must be a positive integer",
-        });
+        return res
+          .status(400)
+          .json({ message: "Quantity must be a positive integer" });
       }
-
       quantities.set(bookId, (quantities.get(bookId) ?? 0) + quantity);
     }
 
     const bookIds = Array.from(quantities.keys());
     const placeholders = bookIds.map(() => "?").join(", ");
 
-    connection = await pool.getConnection();
-    await connection.beginTransaction();
+    // Thực thi thông qua pool.transaction tích hợp sẵn của TiDB HTTP Client
+    const orderId = await pool.transaction(async (tx) => {
+      const bookRows = (await tx.execute(
+        `SELECT id, title, author, description, price, cover, stock, created_at FROM books WHERE id IN (${placeholders})`,
+        bookIds,
+      )) as BookRow[];
 
-    const [bookRows] = await connection.query<BookRow[]>(
-      `
-        SELECT id, title, author, description, price, cover, stock, created_at
-        FROM books
-        WHERE id IN (${placeholders})
-        FOR UPDATE
-      `,
-      bookIds,
-    );
+      const booksById = new Map(bookRows.map((book) => [book.id, book]));
+      let totalAmount = 0;
+      const orderItems: Array<{
+        book: BookRow;
+        quantity: number;
+        price: number;
+      }> = [];
 
-    const booksById = new Map(bookRows.map((book) => [book.id, book]));
+      for (const [bookId, quantity] of quantities.entries()) {
+        const book = booksById.get(bookId);
+        if (!book) throw new Error(`Book ${bookId} no longer exists`);
+        if (book.stock < quantity) {
+          throw new Error(`Only ${book.stock} copies left for "${book.title}"`);
+        }
 
-    let totalAmount = 0;
-    const orderItems: Array<{
-      book: BookRow;
-      quantity: number;
-      price: number;
-    }> = [];
-
-    for (const [bookId, quantity] of quantities.entries()) {
-      const book = booksById.get(bookId);
-
-      if (!book) {
-        await connection.rollback();
-        connection.release();
-        connection = null;
-
-        return res.status(400).json({
-          message: `Book ${bookId} no longer exists`,
-        });
+        const price = Number(book.price);
+        totalAmount += price * quantity;
+        orderItems.push({ book, quantity, price });
       }
 
-      if (book.stock < quantity) {
-        await connection.rollback();
-        connection.release();
-        connection = null;
+      const orderResult = (await tx.execute(
+        `INSERT INTO orders (user_id, total_amount, status) VALUES (?, ?, 'completed')`,
+        [currentUser.id, totalAmount],
+      )) as any;
 
-        return res.status(400).json({
-          message: `Only ${book.stock} copies left for "${book.title}"`,
-        });
-      }
+      const insertedOrderId = orderResult.insertId;
 
-      const price = Number(book.price);
-      totalAmount += price * quantity;
-      orderItems.push({
-        book,
-        quantity,
-        price,
-      });
-    }
+      for (const item of orderItems) {
+        await tx.execute(
+          `INSERT INTO order_items (order_id, book_id, title_snapshot, author_snapshot, cover_snapshot, price_at_purchase, quantity) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [
+            insertedOrderId,
+            item.book.id,
+            item.book.title,
+            item.book.author ?? null,
+            item.book.cover ?? null,
+            item.price,
+            item.quantity,
+          ],
+        );
 
-    const [orderResult] = await connection.query<ResultSetHeader>(
-      `
-        INSERT INTO orders (user_id, total_amount, status)
-        VALUES (?, ?, 'completed')
-      `,
-      [currentUser.id, totalAmount],
-    );
-
-    for (const item of orderItems) {
-      await connection.query(
-        `
-          INSERT INTO order_items (
-            order_id,
-            book_id,
-            title_snapshot,
-            author_snapshot,
-            cover_snapshot,
-            price_at_purchase,
-            quantity
-          )
-          VALUES (?, ?, ?, ?, ?, ?, ?)
-        `,
-        [
-          orderResult.insertId,
-          item.book.id,
-          item.book.title,
-          item.book.author ?? null,
-          item.book.cover ?? null,
-          item.price,
+        await tx.execute("UPDATE books SET stock = stock - ? WHERE id = ?", [
           item.quantity,
-        ],
-      );
+          item.book.id,
+        ]);
+      }
 
-      await connection.query(
-        "UPDATE books SET stock = stock - ? WHERE id = ?",
-        [item.quantity, item.book.id],
-      );
-    }
+      return insertedOrderId;
+    });
 
-    await connection.commit();
-    connection.release();
-    connection = null;
-
-    const orders = await fetchOrders("o.id = ?", [orderResult.insertId]);
-
+    const orders = await fetchOrders("o.id = ?", [orderId]);
     res.status(201).json({
       message: "Order placed successfully",
       order: orders[0] ?? null,
     });
-  } catch (error) {
-    if (connection) {
-      await connection.rollback();
-      connection.release();
-    }
-
+  } catch (error: any) {
     console.error(error);
-
-    res.status(500).json({
-      message: "Could not complete checkout",
+    res.status(400).json({
+      message: error.message || "Could not complete checkout",
     });
   }
 });
@@ -954,7 +875,6 @@ app.get("/api/orders/me", async (req, res) => {
     res.json(await fetchOrders("o.user_id = ?", [currentUser.id]));
   } catch (error) {
     console.error(error);
-
     res.status(500).json({
       message: "Could not load orders",
     });
@@ -969,7 +889,7 @@ app.get("/api/admin/users", async (req, res) => {
       return;
     }
 
-    const [rows] = await pool.query<UserSummaryRow[]>(
+    const rows = (await pool.execute(
       `
         SELECT
           u.id,
@@ -985,7 +905,7 @@ app.get("/api/admin/users", async (req, res) => {
         GROUP BY u.id, u.username, u.full_name, u.email, u.role, u.created_at
         ORDER BY u.created_at DESC, u.id DESC
       `,
-    );
+    )) as UserSummaryRow[];
 
     res.json(
       rows.map((row) => ({
@@ -999,7 +919,6 @@ app.get("/api/admin/users", async (req, res) => {
     );
   } catch (error) {
     console.error(error);
-
     res.status(500).json({
       message: "Could not load user list",
     });
@@ -1035,7 +954,10 @@ app.patch("/api/admin/users/:id/role", async (req, res) => {
       });
     }
 
-    await pool.query("UPDATE users SET role = ? WHERE id = ?", [role, userId]);
+    await pool.execute("UPDATE users SET role = ? WHERE id = ?", [
+      role,
+      userId,
+    ]);
     const updatedUser = await getUserById(userId);
 
     if (!updatedUser) {
@@ -1050,7 +972,6 @@ app.patch("/api/admin/users/:id/role", async (req, res) => {
     });
   } catch (error) {
     console.error(error);
-
     res.status(500).json({
       message: "Could not update user role",
     });
@@ -1068,7 +989,6 @@ app.get("/api/admin/orders", async (req, res) => {
     res.json(await fetchOrders());
   } catch (error) {
     console.error(error);
-
     res.status(500).json({
       message: "Could not load orders",
     });
@@ -1093,22 +1013,22 @@ app.post("/api/admin/books", async (req, res) => {
 
     const { title, author, description, price, cover, stock } = parsed.value;
 
-    const [result] = await pool.query<ResultSetHeader>(
+    const result = (await pool.execute(
       `
         INSERT INTO books (title, author, description, price, cover, stock)
         VALUES (?, ?, ?, ?, ?, ?)
       `,
       [title, author || null, description || null, price, cover || null, stock],
-    );
+    )) as any;
 
-    const [rows] = await pool.query<BookRow[]>(
+    const rows = (await pool.execute(
       `
         SELECT id, title, author, description, price, cover, stock, created_at
         FROM books
         WHERE id = ?
       `,
       [result.insertId],
-    );
+    )) as BookRow[];
 
     res.status(201).json({
       message: "Book created successfully",
@@ -1116,7 +1036,6 @@ app.post("/api/admin/books", async (req, res) => {
     });
   } catch (error) {
     console.error(error);
-
     res.status(500).json({
       message: "Could not create book",
     });
@@ -1149,7 +1068,7 @@ app.put("/api/admin/books/:id", async (req, res) => {
 
     const { title, author, description, price, cover, stock } = parsed.value;
 
-    await pool.query(
+    await pool.execute(
       `
         UPDATE books
         SET title = ?, author = ?, description = ?, price = ?, cover = ?, stock = ?
@@ -1166,14 +1085,14 @@ app.put("/api/admin/books/:id", async (req, res) => {
       ],
     );
 
-    const [rows] = await pool.query<BookRow[]>(
+    const rows = (await pool.execute(
       `
         SELECT id, title, author, description, price, cover, stock, created_at
         FROM books
         WHERE id = ?
       `,
       [bookId],
-    );
+    )) as BookRow[];
 
     if (rows.length === 0) {
       return res.status(404).json({
@@ -1187,7 +1106,6 @@ app.put("/api/admin/books/:id", async (req, res) => {
     });
   } catch (error) {
     console.error(error);
-
     res.status(500).json({
       message: "Could not update book",
     });
@@ -1210,14 +1128,13 @@ app.delete("/api/admin/books/:id", async (req, res) => {
       });
     }
 
-    await pool.query("DELETE FROM books WHERE id = ?", [bookId]);
+    await pool.execute("DELETE FROM books WHERE id = ?", [bookId]);
 
     res.json({
       message: "Book deleted successfully",
     });
   } catch (error) {
     console.error(error);
-
     res.status(500).json({
       message: "Could not delete book",
     });
@@ -1225,9 +1142,9 @@ app.delete("/api/admin/books/:id", async (req, res) => {
 });
 
 async function startServer() {
-  await setupDatabase();
-
   if (process.env.NODE_ENV !== "production") {
+    await setupDatabase();
+
     const vite = await createViteServer({
       server: {
         middlewareMode: true,
@@ -1260,3 +1177,4 @@ if (process.env.NODE_ENV !== "production") {
 }
 
 export default app;
+export { pool };
