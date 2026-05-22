@@ -795,7 +795,7 @@ app.post("/api/orders", async (req, res) => {
     const placeholders = bookIds.map(() => "?").join(", ");
 
     // Thực thi thông qua pool.transaction tích hợp sẵn của TiDB HTTP Client
-    const orderId = await pool.tx(async (tx) => {
+    const orderId = await (pool as any).tx(async (tx: any) => {
       const bookRows = (await tx.execute(
         `SELECT id, title, author, description, price, cover, stock, created_at FROM books WHERE id IN (${placeholders})`,
         bookIds,
