@@ -401,7 +401,7 @@ async function requireAuth(req: express.Request, res: express.Response) {
     });
     return null;
   }
-
+  
   const user = await getUserById(payload.id);
 
   if (!user) {
