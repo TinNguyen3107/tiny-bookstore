@@ -795,7 +795,7 @@ app.post("/api/orders", async (req, res) => {
     const placeholders = bookIds.map(() => "?").join(", ");
 
     // Thực thi thông qua pool.transaction tích hợp sẵn của TiDB HTTP Client
-    const orderId = await pool.transaction(async (tx) => {
+    const orderId = await pool.tx(async (tx) => {
       const bookRows = (await tx.execute(
         `SELECT id, title, author, description, price, cover, stock, created_at FROM books WHERE id IN (${placeholders})`,
         bookIds,
@@ -826,7 +826,8 @@ app.post("/api/orders", async (req, res) => {
         [currentUser.id, totalAmount],
       )) as any;
 
-      const insertedOrderId = orderResult.insertId;
+      // SỬA TẠI ĐÂY: TiDB Serverless SDK trả về lastInsertId thay vì insertId
+      const insertedOrderId = orderResult.lastInsertId || orderResult.insertId;
 
       for (const item of orderItems) {
         await tx.execute(
