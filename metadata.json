@@ -1,0 +1,6 @@
+{
+  "name": "Tiny Bookstore (QA Practice)",
+  "description": "A small full-stack bookstore application for QA Automation/Manual practice.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
