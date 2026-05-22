@@ -1142,9 +1142,9 @@ app.delete("/api/admin/books/:id", async (req, res) => {
 });
 
 async function startServer() {
-  if (process.env.NODE_ENV !== "production") {
-    await setupDatabase();
+  await setupDatabase();
 
+  if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: {
         middlewareMode: true,
@@ -1158,14 +1158,6 @@ async function startServer() {
       console.log(`Server running on http://localhost:${PORT}`);
       console.log("Default admin account: admin / admin123");
     });
-  } else {
-    const distPath = path.join(process.cwd(), "dist");
-
-    app.use(express.static(distPath));
-
-    app.get("*", (_req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
-    });
   }
 }
 
@@ -1174,7 +1166,11 @@ if (process.env.NODE_ENV !== "production") {
     console.error("Failed to start server:", error);
     process.exit(1);
   });
+} else {
+  setupDatabase().catch((error) => {
+    console.error("Failed to initialize database on Production:", error);
+  });
 }
 
-export default app;
 export { pool };
+export default app;
