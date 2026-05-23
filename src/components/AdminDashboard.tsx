@@ -271,6 +271,27 @@ export default function AdminDashboard({
     }
   }
 
+  async function handleDeleteUser(userId: number, username: string) {
+    if (!window.confirm(`Are you sure you want to delete user ${username}?`)) return;
+    setError('');
+    setMessage('');
+
+    try {
+      await apiRequest(`/api/admin/users/${userId}`, {
+        method: 'DELETE',
+        token,
+      });
+      await loadAdminData();
+      setMessage(`User ${username} deleted successfully.`);
+    } catch (deleteError) {
+      setError(
+        deleteError instanceof Error
+          ? deleteError.message
+          : 'Could not delete user.'
+      );
+    }
+  }
+
   const totalRevenue = orders.reduce((sum, order) => sum + order.totalAmount, 0);
 
   return (
@@ -545,6 +566,14 @@ export default function AdminDashboard({
                         >
                           {entry.role === 'admin' ? 'Set as customer' : 'Promote to admin'}
                         </button>
+                        {user.id !== entry.id && (
+                          <button
+                            onClick={() => void handleDeleteUser(entry.id, entry.username)}
+                            className="rounded-full border border-red-200 px-4 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50"
+                          >
+                            Delete
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>

@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS users (
     full_name VARCHAR(150) NULL,
     email VARCHAR(150) NULL,
     role ENUM('admin', 'customer') NOT NULL DEFAULT 'customer',
+    is_deleted BOOLEAN NOT NULL DEFAULT false,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 

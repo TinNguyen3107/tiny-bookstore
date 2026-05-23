@@ -4,6 +4,7 @@ import path from "path";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { connect } from "@tidbcloud/serverless";
 // XÓA: Import vite tĩnh đã được loại bỏ để tránh làm crash Vercel Production
+import { validateRegistrationData, validateProfileUpdateData, validateBookData, validateCategoryData, validateOrderItems } from "./utils/validation";
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -254,9 +255,16 @@ async function setupDatabase() {
       full_name VARCHAR(150) NULL,
       email VARCHAR(150) NULL,
       role ENUM('admin', 'customer') NOT NULL DEFAULT 'customer',
+      is_deleted BOOLEAN NOT NULL DEFAULT false,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  await ensureColumn(
+    "users",
+    "is_deleted",
+    "ALTER TABLE users ADD COLUMN is_deleted BOOLEAN NOT NULL DEFAULT false AFTER role",
+  );
 
   await ensureColumn(
     "users",
@@ -367,7 +375,7 @@ async function getUserById(userId: number) {
     `
       SELECT id, username, password, full_name, email, role, created_at
       FROM users
-      WHERE id = ?
+      WHERE id = ? AND is_deleted = false
       LIMIT 1
     `,
     [userId],
@@ -497,27 +505,7 @@ async function fetchOrders(whereClause = "1 = 1", params: unknown[] = []) {
   return Array.from(orderMap.values());
 }
 
-function normalizeBookPayload(body: Record<string, unknown>) {
-  const categoryId = body.categoryId ? Number(body.categoryId) : null;
-  const title = String(body.title ?? "").trim();
-  const author = String(body.author ?? "").trim();
-  const description = String(body.description ?? "").trim();
-  const cover = String(body.cover ?? "").trim();
-  const price = Number(body.price);
-  const stock = Number(body.stock);
 
-  if (!title) return { error: "Title is required" };
-  if (!Number.isFinite(price) || price <= 0)
-    return { error: "Price must be greater than 0" };
-  if (!Number.isInteger(stock) || stock < 0)
-    return { error: "Stock must be a non-negative integer" };
-  if (categoryId !== null && (!Number.isInteger(categoryId) || categoryId <= 0))
-    return { error: "Invalid category ID" };
-
-  return {
-    value: { categoryId, title, author, description, cover, price, stock },
-  };
-}
 
 app.post("/api/auth/register", async (req, res) => {
   try {
@@ -528,14 +516,13 @@ app.post("/api/auth/register", async (req, res) => {
       .trim()
       .toLowerCase();
 
-    if (!username || !password) {
-      return res
-        .status(400)
-        .json({ message: "Username and password are required" });
+    const validation = validateRegistrationData({ username, password, fullName, email });
+    if (!validation.isValid) {
+      return res.status(400).json({ message: validation.error });
     }
 
     const rawUser = await pool.execute(
-      "SELECT id FROM users WHERE username = ? LIMIT 1",
+      "SELECT id FROM users WHERE username = ? AND is_deleted = false LIMIT 1",
       [username],
     );
     if (getRows(rawUser).length > 0) {
@@ -544,7 +531,7 @@ app.post("/api/auth/register", async (req, res) => {
 
     if (email) {
       const rawEmail = await pool.execute(
-        "SELECT id FROM users WHERE email = ? LIMIT 1",
+        "SELECT id FROM users WHERE email = ? AND is_deleted = false LIMIT 1",
         [email],
       );
       if (getRows(rawEmail).length > 0) {
@@ -583,7 +570,7 @@ app.post("/api/auth/login", async (req, res) => {
       `
         SELECT id, username, password, full_name, email, role, created_at
         FROM users
-        WHERE username = ? AND password = ?
+        WHERE username = ? AND password = ? AND is_deleted = false
         LIMIT 1
       `,
       [username, password],
@@ -632,8 +619,9 @@ app.put("/api/users/me", async (req, res) => {
       .trim()
       .toLowerCase();
 
-    if (!username) {
-      return res.status(400).json({ message: "Username is required" });
+    const validation = validateProfileUpdateData({ username, fullName, email });
+    if (!validation.isValid) {
+      return res.status(400).json({ message: validation.error });
     }
 
     const rawConflict = await pool.execute(
@@ -641,7 +629,7 @@ app.put("/api/users/me", async (req, res) => {
         SELECT id
         FROM users
         WHERE (username = ? OR (? <> '' AND email = ?))
-          AND id <> ?
+          AND id <> ? AND is_deleted = false
         LIMIT 1
       `,
       [username, email, email, currentUser.id],
@@ -728,26 +716,11 @@ app.post("/api/orders", async (req, res) => {
     const currentUser = await requireAuth(req, res);
     if (!currentUser) return;
 
-    const incomingItems = Array.isArray(req.body.items) ? req.body.items : [];
-    if (incomingItems.length === 0) {
-      return res.status(400).json({ message: "Your cart is empty" });
+    const validation = validateOrderItems(req.body.items);
+    if (!validation.isValid) {
+      return res.status(400).json({ message: validation.error });
     }
-
-    const quantities = new Map<number, number>();
-    for (const rawItem of incomingItems) {
-      const bookId = Number((rawItem as any).bookId);
-      const quantity = Number((rawItem as any).quantity);
-
-      if (!Number.isInteger(bookId) || bookId <= 0) {
-        return res.status(400).json({ message: "Invalid book id in cart" });
-      }
-      if (!Number.isInteger(quantity) || quantity <= 0) {
-        return res
-          .status(400)
-          .json({ message: "Quantity must be a positive integer" });
-      }
-      quantities.set(bookId, (quantities.get(bookId) ?? 0) + quantity);
-    }
+    const quantities = validation.quantities!;
 
     const bookIds = Array.from(quantities.keys());
     const placeholders = bookIds.map(() => "?").join(", ");
@@ -853,6 +826,7 @@ app.get("/api/admin/users", async (req, res) => {
           COALESCE(SUM(o.total_amount), 0) AS total_spent
         FROM users u
         LEFT JOIN orders o ON o.user_id = u.id
+        WHERE u.is_deleted = false
         GROUP BY u.id, u.username, u.full_name, u.email, u.role, u.created_at
         ORDER BY u.created_at DESC, u.id DESC
       `,
@@ -915,6 +889,37 @@ app.patch("/api/admin/users/:id/role", async (req, res) => {
   }
 });
 
+app.delete("/api/admin/users/:id", async (req, res) => {
+  try {
+    const adminUser = await requireAdmin(req, res);
+    if (!adminUser) return;
+
+    const userId = Number(req.params.id);
+
+    if (!Number.isInteger(userId) || userId <= 0) {
+      return res.status(400).json({ message: "Invalid user id" });
+    }
+
+    if (userId === adminUser.id) {
+      return res.status(400).json({ message: "You cannot delete your own account" });
+    }
+
+    const user = await getUserById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    await pool.execute(
+      "UPDATE users SET is_deleted = true, username = CONCAT(username, '_deleted_', UNIX_TIMESTAMP()) WHERE id = ?",
+      [userId]
+    );
+    res.json({ message: "User deleted successfully" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Could not delete user" });
+  }
+});
+
 app.get("/api/admin/orders", async (req, res) => {
   try {
     const adminUser = await requireAdmin(req, res);
@@ -931,8 +936,8 @@ app.post("/api/admin/books", async (req, res) => {
     const adminUser = await requireAdmin(req, res);
     if (!adminUser) return;
 
-    const parsed = normalizeBookPayload(req.body as Record<string, unknown>);
-    if ("error" in parsed) {
+    const parsed = validateBookData(req.body);
+    if (!parsed.isValid) {
       return res.status(400).json({ message: parsed.error });
     }
 
@@ -973,8 +978,8 @@ app.put("/api/admin/books/:id", async (req, res) => {
       return res.status(400).json({ message: "Invalid book id" });
     }
 
-    const parsed = normalizeBookPayload(req.body as Record<string, unknown>);
-    if ("error" in parsed) {
+    const parsed = validateBookData(req.body);
+    if (!parsed.isValid) {
       return res.status(400).json({ message: parsed.error });
     }
 
@@ -1038,12 +1043,12 @@ app.post("/api/admin/categories", async (req, res) => {
     const adminUser = await requireAdmin(req, res);
     if (!adminUser) return;
 
+    const validation = validateCategoryData(req.body);
+    if (!validation.isValid) {
+      return res.status(400).json({ message: validation.error });
+    }
     const name = String(req.body.name ?? "").trim();
     const description = String(req.body.description ?? "").trim();
-
-    if (!name) {
-      return res.status(400).json({ message: "Category name is required" });
-    }
 
     await pool.execute(
       `INSERT INTO categories (name, description) VALUES (?, ?)`,
@@ -1067,11 +1072,13 @@ app.put("/api/admin/categories/:id", async (req, res) => {
     if (!adminUser) return;
 
     const catId = Number(req.params.id);
+    if (!Number.isInteger(catId) || catId <= 0) return res.status(400).json({ message: "Invalid category id" });
+
+    const validation = validateCategoryData(req.body);
+    if (!validation.isValid) return res.status(400).json({ message: validation.error });
+
     const name = String(req.body.name ?? "").trim();
     const description = String(req.body.description ?? "").trim();
-
-    if (!Number.isInteger(catId) || catId <= 0) return res.status(400).json({ message: "Invalid category id" });
-    if (!name) return res.status(400).json({ message: "Category name is required" });
 
     await pool.execute(`UPDATE categories SET name = ?, description = ? WHERE id = ?`, [name, description || null, catId]);
 
