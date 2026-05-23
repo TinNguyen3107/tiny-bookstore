@@ -4,7 +4,7 @@ import path from "path";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { connect } from "@tidbcloud/serverless";
 // XÓA: Import vite tĩnh đã được loại bỏ để tránh làm crash Vercel Production
-import { validateRegistrationData, validateProfileUpdateData, validateBookData, validateCategoryData, validateOrderItems } from "./utils/validation";
+import { validateRegistrationData, validateProfileUpdateData, validateBookData, validateCategoryData, validateOrderItems } from "./utils/validation.js";
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
