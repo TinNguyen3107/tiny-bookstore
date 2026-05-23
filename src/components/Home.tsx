@@ -1,7 +1,9 @@
+import { useEffect, useState } from 'react';
 import { ShoppingCart } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import type { Book, CartItem } from '../types';
+import type { Book, CartItem, Category } from '../types';
 import { formatCurrency } from '../utils';
+import { apiRequest } from '../api';
 
 interface HomeProps {
   books: Book[];
@@ -18,6 +20,19 @@ export default function Home({
   error,
   onAddToCart,
 }: HomeProps) {
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
+
+  useEffect(() => {
+    apiRequest<Category[]>('/api/categories')
+      .then(setCategories)
+      .catch(console.error);
+  }, []);
+
+  const filteredBooks = selectedCategory
+    ? books.filter((b) => b.categoryId === selectedCategory)
+    : books;
+
   return (
     <div className="space-y-8">
       <section className="overflow-hidden rounded-[2rem] bg-gradient-to-br from-emerald-600 via-emerald-500 to-lime-400 px-6 py-10 text-white shadow-lg sm:px-10">
@@ -46,13 +61,42 @@ export default function Home({
           Loading books...
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
-          {books.map((book) => {
-            const cartQuantity =
-              cart.find((item) => item.bookId === book.id)?.quantity ?? 0;
-            const outOfStock = book.stock <= 0;
+        <>
+          {categories.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => setSelectedCategory(null)}
+                className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
+                  selectedCategory === null
+                    ? 'bg-stone-900 text-white'
+                    : 'bg-white text-stone-600 hover:bg-stone-100'
+                }`}
+              >
+                All Books
+              </button>
+              {categories.map((cat) => (
+                <button
+                  key={cat.id}
+                  onClick={() => setSelectedCategory(cat.id)}
+                  className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
+                    selectedCategory === cat.id
+                      ? 'bg-stone-900 text-white'
+                      : 'bg-white text-stone-600 hover:bg-stone-100'
+                  }`}
+                >
+                  {cat.name}
+                </button>
+              ))}
+            </div>
+          )}
 
-            return (
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
+            {filteredBooks.map((book) => {
+              const cartQuantity =
+                cart.find((item) => item.bookId === book.id)?.quantity ?? 0;
+              const outOfStock = book.stock <= 0;
+
+              return (
               <article
                 key={book.id}
                 className="group flex h-full flex-col overflow-hidden rounded-[1.8rem] border border-stone-200 bg-white shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-stone-300 hover:shadow-xl"
@@ -62,7 +106,7 @@ export default function Home({
                     <div className="absolute inset-0 bg-gradient-to-t from-stone-950/20 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
                     <div className="absolute left-3 top-3 z-10 flex items-center gap-2">
                       <span className="rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-700 backdrop-blur">
-                        Classic pick
+                        {book.categoryName || 'Uncategorized'}
                       </span>
                     </div>
                     <div className="absolute right-3 top-3 z-10">
@@ -150,8 +194,9 @@ export default function Home({
                 </div>
               </article>
             );
-          })}
-        </div>
+            })}
+          </div>
+        </>
       )}
     </div>
   );

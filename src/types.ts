@@ -2,6 +2,8 @@ export type UserRole = 'admin' | 'customer';
 
 export interface Book {
   id: number;
+  categoryId?: number | null;
+  categoryName?: string | null;
   title: string;
   author: string;
   description: string;
@@ -9,6 +11,12 @@ export interface Book {
   cover: string;
   stock: number;
   createdAt: string;
+}
+
+export interface Category {
+  id: number;
+  name: string;
+  description?: string | null;
 }
 
 export interface User {

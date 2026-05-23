@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { apiRequest } from '../api';
-import type { AdminUserSummary, Book, Order, User } from '../types';
+import type { AdminUserSummary, Book, Category, Order, User } from '../types';
 import { formatCurrency, formatDate } from '../utils';
 
 interface AdminDashboardProps {
@@ -11,6 +11,7 @@ interface AdminDashboardProps {
 }
 
 interface BookFormState {
+  categoryId: string;
   title: string;
   author: string;
   description: string;
@@ -20,12 +21,23 @@ interface BookFormState {
 }
 
 const emptyBookForm: BookFormState = {
+  categoryId: '',
   title: '',
   author: '',
   description: '',
   price: '',
   cover: '',
   stock: '0',
+};
+
+interface CategoryFormState {
+  name: string;
+  description: string;
+}
+
+const emptyCategoryForm: CategoryFormState = {
+  name: '',
+  description: '',
 };
 
 export default function AdminDashboard({
@@ -39,9 +51,14 @@ export default function AdminDashboard({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const [categories, setCategories] = useState<Category[]>([]);
   const [bookForm, setBookForm] = useState<BookFormState>(emptyBookForm);
   const [editingBookId, setEditingBookId] = useState<number | null>(null);
   const [savingBook, setSavingBook] = useState(false);
+
+  const [categoryForm, setCategoryForm] = useState<CategoryFormState>(emptyCategoryForm);
+  const [editingCategoryId, setEditingCategoryId] = useState<number | null>(null);
+  const [savingCategory, setSavingCategory] = useState(false);
 
   async function loadAdminData() {
     if (!token) {
@@ -52,13 +69,15 @@ export default function AdminDashboard({
       setLoading(true);
       setError('');
 
-      const [userList, orderList] = await Promise.all([
+      const [userList, orderList, categoryList] = await Promise.all([
         apiRequest<AdminUserSummary[]>('/api/admin/users', { token }),
         apiRequest<Order[]>('/api/admin/orders', { token }),
+        apiRequest<Category[]>('/api/categories', { token }),
       ]);
 
       setUsers(userList);
       setOrders(orderList);
+      setCategories(categoryList);
     } catch (loadError) {
       setError(
         loadError instanceof Error
@@ -77,6 +96,7 @@ export default function AdminDashboard({
   function startEdit(book: Book) {
     setEditingBookId(book.id);
     setBookForm({
+      categoryId: book.categoryId ? String(book.categoryId) : '',
       title: book.title,
       author: book.author,
       description: book.description,
@@ -107,6 +127,7 @@ export default function AdminDashboard({
         token,
         body: {
           ...bookForm,
+          categoryId: bookForm.categoryId ? Number(bookForm.categoryId) : null,
           price: Number(bookForm.price),
           stock: Number(bookForm.stock),
         },
@@ -150,6 +171,76 @@ export default function AdminDashboard({
         deleteError instanceof Error
           ? deleteError.message
           : 'Could not delete book.'
+      );
+    }
+  }
+
+  function startEditCategory(category: Category) {
+    setEditingCategoryId(category.id);
+    setCategoryForm({
+      name: category.name,
+      description: category.description || '',
+    });
+  }
+
+  function resetCategoryForm() {
+    setEditingCategoryId(null);
+    setCategoryForm(emptyCategoryForm);
+  }
+
+  async function handleCategorySubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSavingCategory(true);
+    setError('');
+    setMessage('');
+
+    try {
+      const endpoint = editingCategoryId
+        ? `/api/admin/categories/${editingCategoryId}`
+        : '/api/admin/categories';
+
+      await apiRequest(endpoint, {
+        method: editingCategoryId ? 'PUT' : 'POST',
+        token,
+        body: categoryForm,
+      });
+
+      await loadAdminData();
+      setMessage(
+        editingCategoryId
+          ? 'Category updated successfully.'
+          : 'Category added successfully.'
+      );
+      resetCategoryForm();
+    } catch (saveError) {
+      setError(
+        saveError instanceof Error ? saveError.message : 'Could not save category.'
+      );
+    } finally {
+      setSavingCategory(false);
+    }
+  }
+
+  async function handleDeleteCategory(categoryId: number) {
+    setError('');
+    setMessage('');
+
+    try {
+      await apiRequest(`/api/admin/categories/${categoryId}`, {
+        method: 'DELETE',
+        token,
+      });
+      await loadAdminData();
+      setMessage('Category deleted successfully.');
+
+      if (editingCategoryId === categoryId) {
+        resetCategoryForm();
+      }
+    } catch (deleteError) {
+      setError(
+        deleteError instanceof Error
+          ? deleteError.message
+          : 'Could not delete category.'
       );
     }
   }
@@ -261,7 +352,7 @@ export default function AdminDashboard({
             </div>
 
             <div className="mt-6 grid gap-4 md:grid-cols-2">
-              <div className="md:col-span-2">
+              <div className="md:col-span-1">
                 <label className="mb-1 block text-sm font-medium text-stone-700">
                   Title
                 </label>
@@ -276,6 +367,29 @@ export default function AdminDashboard({
                   }
                   required
                 />
+              </div>
+
+              <div className="md:col-span-1">
+                <label className="mb-1 block text-sm font-medium text-stone-700">
+                  Category
+                </label>
+                <select
+                  className="w-full rounded-2xl border border-stone-300 px-4 py-3 outline-none transition focus:border-emerald-500"
+                  value={bookForm.categoryId}
+                  onChange={(event) =>
+                    setBookForm((current) => ({
+                      ...current,
+                      categoryId: event.target.value,
+                    }))
+                  }
+                >
+                  <option value="">-- No Category --</option>
+                  {categories.map((cat) => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.name}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div>
@@ -387,7 +501,7 @@ export default function AdminDashboard({
               Review user details, order counts, and update admin access.
             </p>
 
-            <div className="mt-5 space-y-4">
+            <div className="mt-5 max-h-[400px] space-y-4 overflow-y-auto pr-2">
               {loading ? (
                 <div className="text-sm text-stone-500">Loading users...</div>
               ) : (
@@ -442,12 +556,84 @@ export default function AdminDashboard({
 
         <div className="space-y-6">
           <div className="rounded-[2rem] border border-stone-200 bg-white p-6 shadow-sm">
+            <h2 className="text-2xl font-black text-stone-900">Categories</h2>
+            <p className="mt-1 text-sm text-stone-500">
+              Manage product categories for your books.
+            </p>
+
+            <form onSubmit={handleCategorySubmit} className="mt-5 space-y-4 border-b border-stone-100 pb-6">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-stone-700">Name</label>
+                  <input
+                    className="w-full rounded-2xl border border-stone-300 px-4 py-3 outline-none transition focus:border-emerald-500"
+                    value={categoryForm.name}
+                    onChange={(e) => setCategoryForm(curr => ({ ...curr, name: e.target.value }))}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-stone-700">Description</label>
+                  <input
+                    className="w-full rounded-2xl border border-stone-300 px-4 py-3 outline-none transition focus:border-emerald-500"
+                    value={categoryForm.description}
+                    onChange={(e) => setCategoryForm(curr => ({ ...curr, description: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="submit"
+                  disabled={savingCategory}
+                  className="rounded-full bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-emerald-300"
+                >
+                  {savingCategory ? 'Saving...' : editingCategoryId ? 'Update' : 'Add category'}
+                </button>
+                {editingCategoryId && (
+                  <button
+                    type="button"
+                    onClick={resetCategoryForm}
+                    className="rounded-full border border-stone-200 px-4 py-2 text-sm font-medium text-stone-600 transition-colors hover:bg-stone-100"
+                  >
+                    Cancel
+                  </button>
+                )}
+              </div>
+            </form>
+
+            <div className="mt-6 max-h-[280px] space-y-3 overflow-y-auto pr-2">
+              {categories.map((cat) => (
+                <div key={cat.id} className="flex flex-col gap-3 rounded-2xl border border-stone-100 bg-stone-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <div className="font-bold text-stone-900">{cat.name}</div>
+                    {cat.description && <div className="text-sm text-stone-500">{cat.description}</div>}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => startEditCategory(cat)}
+                      className="rounded-full border border-stone-200 px-3 py-1.5 text-sm font-medium text-stone-600 transition-colors hover:bg-white"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => void handleDeleteCategory(cat.id)}
+                      className="rounded-full border border-red-200 px-3 py-1.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-50"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-[2rem] border border-stone-200 bg-white p-6 shadow-sm">
             <h2 className="text-2xl font-black text-stone-900">Inventory</h2>
             <p className="mt-1 text-sm text-stone-500">
               Edit or remove books currently shown in the storefront.
             </p>
 
-            <div className="mt-5 space-y-4">
+            <div className="mt-5 max-h-[400px] space-y-4 overflow-y-auto pr-2">
               {books.map((book) => (
                 <div
                   key={book.id}
@@ -465,7 +651,10 @@ export default function AdminDashboard({
                     </div>
                     <div>
                       <div className="font-bold text-stone-900">{book.title}</div>
-                      <div className="text-sm text-stone-500">{book.author}</div>
+                      <div className="text-sm text-stone-500">
+                        {book.author}
+                        {book.categoryName ? ` • ${book.categoryName}` : ''}
+                      </div>
                       <div className="mt-2 text-sm text-stone-700">
                         {formatCurrency(book.price)} • Stock {book.stock}
                       </div>
@@ -497,7 +686,7 @@ export default function AdminDashboard({
               Every completed order, grouped by customer and purchase date.
             </p>
 
-            <div className="mt-5 space-y-4">
+            <div className="mt-5 max-h-[500px] space-y-4 overflow-y-auto pr-2">
               {loading ? (
                 <div className="text-sm text-stone-500">Loading orders...</div>
               ) : orders.length === 0 ? (
@@ -537,7 +726,7 @@ export default function AdminDashboard({
                       </div>
                     </div>
 
-                    <div className="mt-4 space-y-3">
+                    <div className="mt-4 max-h-[200px] space-y-3 overflow-y-auto pr-2">
                       {order.items.map((item, index) => (
                         <div
                           key={`${order.id}-${item.bookId ?? index}`}

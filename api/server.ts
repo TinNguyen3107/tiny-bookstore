@@ -66,6 +66,8 @@ interface PublicUser {
 
 interface BookRow {
   id: number;
+  category_id?: number | null;
+  category_name?: string | null;
   title: string;
   author: string | null;
   description: string | null;
@@ -77,6 +79,8 @@ interface BookRow {
 
 interface PublicBook {
   id: number;
+  categoryId?: number | null;
+  categoryName?: string | null;
   title: string;
   author: string;
   description: string;
@@ -202,6 +206,8 @@ function serializeUser(user: UserRow): PublicUser {
 function serializeBook(book: BookRow): PublicBook {
   return {
     id: book.id,
+    categoryId: book.category_id ?? null,
+    categoryName: book.category_name ?? null,
     title: book.title,
     author: book.author ?? "Unknown author",
     description: book.description ?? "",
@@ -413,9 +419,10 @@ async function requireAdmin(req: express.Request, res: express.Response) {
 async function fetchBooks() {
   const rawResult = await pool.execute(
     `
-      SELECT id, title, author, description, price, cover, stock, created_at
-      FROM books
-      ORDER BY created_at DESC, id DESC
+      SELECT b.id, b.category_id, c.name AS category_name, b.title, b.author, b.description, b.price, b.cover, b.stock, b.created_at
+      FROM books b
+      LEFT JOIN categories c ON b.category_id = c.id
+      ORDER BY b.created_at DESC, b.id DESC
     `,
   );
   const rows = getRows<BookRow>(rawResult);
@@ -491,6 +498,7 @@ async function fetchOrders(whereClause = "1 = 1", params: unknown[] = []) {
 }
 
 function normalizeBookPayload(body: Record<string, unknown>) {
+  const categoryId = body.categoryId ? Number(body.categoryId) : null;
   const title = String(body.title ?? "").trim();
   const author = String(body.author ?? "").trim();
   const description = String(body.description ?? "").trim();
@@ -503,9 +511,11 @@ function normalizeBookPayload(body: Record<string, unknown>) {
     return { error: "Price must be greater than 0" };
   if (!Number.isInteger(stock) || stock < 0)
     return { error: "Stock must be a non-negative integer" };
+  if (categoryId !== null && (!Number.isInteger(categoryId) || categoryId <= 0))
+    return { error: "Invalid category ID" };
 
   return {
-    value: { title, author, description, cover, price, stock },
+    value: { categoryId, title, author, description, cover, price, stock },
   };
 }
 
@@ -545,6 +555,7 @@ app.post("/api/auth/register", async (req, res) => {
     const result = (await pool.execute(
       `INSERT INTO users (username, password, full_name, email, role) VALUES (?, ?, ?, ?, 'customer')`,
       [username, password, fullName || username, email || null],
+      { fullResult: true }
     )) as any;
 
     const insertId = Number(result.lastInsertId || result.insertId);
@@ -666,6 +677,16 @@ app.put("/api/users/me", async (req, res) => {
   }
 });
 
+app.get("/api/categories", async (_req, res) => {
+  try {
+    const rawResult = await pool.execute(`SELECT id, name, description FROM categories ORDER BY name ASC`);
+    res.json(getRows(rawResult));
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Could not load categories" });
+  }
+});
+
 app.get("/api/books", async (_req, res) => {
   try {
     res.json(await fetchBooks());
@@ -684,7 +705,7 @@ app.get("/api/books/:id", async (req, res) => {
     }
 
     const rawResult = await pool.execute(
-      `SELECT id, title, author, description, price, cover, stock, created_at FROM books WHERE id = ? LIMIT 1`,
+      `SELECT b.id, b.category_id, c.name AS category_name, b.title, b.author, b.description, b.price, b.cover, b.stock, b.created_at FROM books b LEFT JOIN categories c ON b.category_id = c.id WHERE b.id = ? LIMIT 1`,
       [bookId],
     );
 
@@ -732,10 +753,10 @@ app.post("/api/orders", async (req, res) => {
     const placeholders = bookIds.map(() => "?").join(", ");
 
     // KIỂU TRANSACTION CHUẨN CỦA TiDB HTTP CLIENT
-    tx = await (pool as any).transaction();
+    tx = await pool.begin();
 
     const rawBooks = await tx.execute(
-      `SELECT id, title, author, description, price, cover, stock, created_at FROM books WHERE id IN (${placeholders})`,
+      `SELECT b.id, b.category_id, c.name AS category_name, b.title, b.author, b.description, b.price, b.cover, b.stock, b.created_at FROM books b LEFT JOIN categories c ON b.category_id = c.id WHERE b.id IN (${placeholders})`,
       bookIds,
     );
     const bookRows = getRows<BookRow>(rawBooks);
@@ -763,6 +784,7 @@ app.post("/api/orders", async (req, res) => {
     const orderResult = (await tx.execute(
       `INSERT INTO orders (user_id, total_amount, status) VALUES (?, ?, 'completed')`,
       [currentUser.id, totalAmount],
+      { fullResult: true }
     )) as any;
 
     const insertedOrderId = Number(
@@ -914,17 +936,18 @@ app.post("/api/admin/books", async (req, res) => {
       return res.status(400).json({ message: parsed.error });
     }
 
-    const { title, author, description, price, cover, stock } = parsed.value;
+    const { categoryId, title, author, description, price, cover, stock } = parsed.value;
 
     const result = (await pool.execute(
-      `INSERT INTO books (title, author, description, price, cover, stock) VALUES (?, ?, ?, ?, ?, ?)`,
-      [title, author || null, description || null, price, cover || null, stock],
+      `INSERT INTO books (category_id, title, author, description, price, cover, stock) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [categoryId, title, author || null, description || null, price, cover || null, stock],
+      { fullResult: true }
     )) as any;
 
     const insertId = Number(result.lastInsertId || result.insertId);
 
     const rawResult = await pool.execute(
-      `SELECT id, title, author, description, price, cover, stock, created_at FROM books WHERE id = ?`,
+      `SELECT b.id, b.category_id, c.name AS category_name, b.title, b.author, b.description, b.price, b.cover, b.stock, b.created_at FROM books b LEFT JOIN categories c ON b.category_id = c.id WHERE b.id = ?`,
       [insertId],
     );
 
@@ -955,11 +978,12 @@ app.put("/api/admin/books/:id", async (req, res) => {
       return res.status(400).json({ message: parsed.error });
     }
 
-    const { title, author, description, price, cover, stock } = parsed.value;
+    const { categoryId, title, author, description, price, cover, stock } = parsed.value;
 
     await pool.execute(
-      `UPDATE books SET title = ?, author = ?, description = ?, price = ?, cover = ?, stock = ? WHERE id = ?`,
+      `UPDATE books SET category_id = ?, title = ?, author = ?, description = ?, price = ?, cover = ?, stock = ? WHERE id = ?`,
       [
+        categoryId,
         title,
         author || null,
         description || null,
@@ -971,7 +995,7 @@ app.put("/api/admin/books/:id", async (req, res) => {
     );
 
     const rawResult = await pool.execute(
-      `SELECT id, title, author, description, price, cover, stock, created_at FROM books WHERE id = ?`,
+      `SELECT b.id, b.category_id, c.name AS category_name, b.title, b.author, b.description, b.price, b.cover, b.stock, b.created_at FROM books b LEFT JOIN categories c ON b.category_id = c.id WHERE b.id = ?`,
       [bookId],
     );
 
@@ -1006,6 +1030,75 @@ app.delete("/api/admin/books/:id", async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Could not delete book" });
+  }
+});
+
+app.post("/api/admin/categories", async (req, res) => {
+  try {
+    const adminUser = await requireAdmin(req, res);
+    if (!adminUser) return;
+
+    const name = String(req.body.name ?? "").trim();
+    const description = String(req.body.description ?? "").trim();
+
+    if (!name) {
+      return res.status(400).json({ message: "Category name is required" });
+    }
+
+    await pool.execute(
+      `INSERT INTO categories (name, description) VALUES (?, ?)`,
+      [name, description || null],
+    );
+
+    const rawResult = await pool.execute(`SELECT id, name, description FROM categories WHERE name = ?`, [name]);
+    res.status(201).json({
+      message: "Category created successfully",
+      category: getRows(rawResult)[0],
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Could not create category" });
+  }
+});
+
+app.put("/api/admin/categories/:id", async (req, res) => {
+  try {
+    const adminUser = await requireAdmin(req, res);
+    if (!adminUser) return;
+
+    const catId = Number(req.params.id);
+    const name = String(req.body.name ?? "").trim();
+    const description = String(req.body.description ?? "").trim();
+
+    if (!Number.isInteger(catId) || catId <= 0) return res.status(400).json({ message: "Invalid category id" });
+    if (!name) return res.status(400).json({ message: "Category name is required" });
+
+    await pool.execute(`UPDATE categories SET name = ?, description = ? WHERE id = ?`, [name, description || null, catId]);
+
+    const rawResult = await pool.execute(`SELECT id, name, description FROM categories WHERE id = ?`, [catId]);
+    res.json({
+      message: "Category updated successfully",
+      category: getRows(rawResult)[0],
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Could not update category" });
+  }
+});
+
+app.delete("/api/admin/categories/:id", async (req, res) => {
+  try {
+    const adminUser = await requireAdmin(req, res);
+    if (!adminUser) return;
+
+    const catId = Number(req.params.id);
+    if (!Number.isInteger(catId) || catId <= 0) return res.status(400).json({ message: "Invalid category id" });
+
+    await pool.execute(`DELETE FROM categories WHERE id = ?`, [catId]);
+    res.json({ message: "Category deleted successfully" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Could not delete category" });
   }
 });
 

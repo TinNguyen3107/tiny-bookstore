@@ -181,11 +181,12 @@ export default function ProfilePage({
             You have not purchased any books yet.
           </div>
         ) : (
-          orders.map((order) => (
-            <article
-              key={order.id}
-              className="rounded-[2rem] border border-stone-200 bg-white p-6 shadow-sm"
-            >
+          <div className="max-h-[600px] space-y-4 overflow-y-auto pr-2">
+            {orders.map((order) => (
+              <article
+                key={order.id}
+                className="rounded-[2rem] border border-stone-200 bg-white p-6 shadow-sm"
+              >
               <div className="flex flex-wrap items-start justify-between gap-3 border-b border-stone-100 pb-4">
                 <div>
                   <div className="text-sm font-semibold uppercase tracking-[0.2em] text-stone-400">
@@ -239,7 +240,8 @@ export default function ProfilePage({
                 ))}
               </div>
             </article>
-          ))
+            ))}
+          </div>
         )}
       </section>
     </div>
