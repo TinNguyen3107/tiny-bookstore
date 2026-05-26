@@ -63,30 +63,43 @@ export default function Home({
       ) : (
         <>
           {categories.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              <button
-                onClick={() => setSelectedCategory(null)}
-                className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
-                  selectedCategory === null
-                    ? 'bg-stone-900 text-white'
-                    : 'bg-white text-stone-600 hover:bg-stone-100'
-                }`}
-              >
-                All Books
-              </button>
-              {categories.map((cat) => (
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-wrap gap-2">
                 <button
-                  key={cat.id}
-                  onClick={() => setSelectedCategory(cat.id)}
+                  onClick={() => setSelectedCategory(null)}
                   className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
-                    selectedCategory === cat.id
+                    selectedCategory === null
                       ? 'bg-stone-900 text-white'
                       : 'bg-white text-stone-600 hover:bg-stone-100'
                   }`}
                 >
-                  {cat.name}
+                  All Books
                 </button>
-              ))}
+                {categories.map((cat) => (
+                  <button
+                    key={cat.id}
+                    onClick={() => setSelectedCategory(cat.id)}
+                    className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
+                      selectedCategory === cat.id
+                        ? 'bg-stone-900 text-white'
+                        : 'bg-white text-stone-600 hover:bg-stone-100'
+                    }`}
+                  >
+                    {cat.name}
+                  </button>
+                ))}
+              </div>
+              
+              {selectedCategory && (
+                <div className="rounded-2xl border border-stone-200 bg-stone-50 p-5 text-stone-700 shadow-sm transition-all duration-300">
+                  <h3 className="mb-2 text-lg font-bold text-stone-900">
+                    {categories.find(c => c.id === selectedCategory)?.name}
+                  </h3>
+                  <p className="text-sm leading-relaxed text-stone-600">
+                    {categories.find(c => c.id === selectedCategory)?.description || 'No description available for this category.'}
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
