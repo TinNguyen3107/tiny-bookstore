@@ -230,7 +230,7 @@ export default function Home({
                   }
                   setVisibleCount(8);
                 }}
-                className="w-full rounded-full border border-stone-200 py-2 pl-10 pr-4 text-sm outline-none transition-all focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+                className="w-full rounded-full border border-stone-400 py-2 pl-10 pr-4 text-sm outline-none transition-all focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
               />
             </div>
           </div>
