@@ -45,7 +45,7 @@ export default function Auth({ isRegister, onAuthSuccess }: AuthProps) {
   return (
     <div className="mx-auto mt-10 max-w-lg rounded-[2rem] border border-stone-200 bg-white p-8 shadow-sm">
       <div className="mb-8 space-y-2 text-center">
-        <div className="text-sm font-semibold uppercase tracking-[0.3em] text-emerald-600">
+        <div className="text-sm font-semibold uppercase tracking-[0.3em] text-sky-600">
           Tiny Bookstore
         </div>
         <h1 className="text-3xl font-black text-stone-900">
@@ -73,7 +73,7 @@ export default function Auth({ isRegister, onAuthSuccess }: AuthProps) {
             <input
               id="fullName"
               type="text"
-              className="w-full rounded-2xl border border-stone-300 px-4 py-3 outline-none transition focus:border-emerald-500"
+              className="w-full rounded-2xl border border-stone-300 px-4 py-3 outline-none transition focus:border-sky-500"
               value={fullName}
               onChange={(event) => setFullName(event.target.value)}
             />
@@ -88,7 +88,7 @@ export default function Auth({ isRegister, onAuthSuccess }: AuthProps) {
             id="username"
             type="text"
             required
-            className="w-full rounded-2xl border border-stone-300 px-4 py-3 outline-none transition focus:border-emerald-500"
+            className="w-full rounded-2xl border border-stone-300 px-4 py-3 outline-none transition focus:border-sky-500"
             value={username}
             onChange={(event) => setUsername(event.target.value)}
           />
@@ -102,7 +102,7 @@ export default function Auth({ isRegister, onAuthSuccess }: AuthProps) {
             <input
               id="email"
               type="email"
-              className="w-full rounded-2xl border border-stone-300 px-4 py-3 outline-none transition focus:border-emerald-500"
+              className="w-full rounded-2xl border border-stone-300 px-4 py-3 outline-none transition focus:border-sky-500"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
             />
@@ -117,7 +117,7 @@ export default function Auth({ isRegister, onAuthSuccess }: AuthProps) {
             id="password"
             type="password"
             required
-            className="w-full rounded-2xl border border-stone-300 px-4 py-3 outline-none transition focus:border-emerald-500"
+            className="w-full rounded-2xl border border-stone-300 px-4 py-3 outline-none transition focus:border-sky-500"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
           />
@@ -126,7 +126,7 @@ export default function Auth({ isRegister, onAuthSuccess }: AuthProps) {
         <button
           type="submit"
           disabled={loading}
-          className="w-full rounded-full bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-emerald-300"
+          className="w-full rounded-full bg-sky-500 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-sky-600 disabled:cursor-not-allowed disabled:bg-sky-300"
         >
           {loading
             ? 'Processing...'
@@ -140,7 +140,7 @@ export default function Auth({ isRegister, onAuthSuccess }: AuthProps) {
         {isRegister ? 'Already have an account?' : 'Need an account?'}{' '}
         <Link
           to={isRegister ? '/login' : '/register'}
-          className="font-semibold text-emerald-700 hover:text-emerald-800"
+          className="font-semibold text-sky-600 hover:text-sky-700"
         >
           {isRegister ? 'Log in here' : 'Register here'}
         </Link>

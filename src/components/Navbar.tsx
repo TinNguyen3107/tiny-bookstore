@@ -1,4 +1,4 @@
-import { BookOpen, LayoutDashboard, LogOut, ShoppingCart, User } from 'lucide-react';
+import { LayoutDashboard, LogOut, ShoppingCart, User } from 'lucide-react';
 import { Link, NavLink } from 'react-router-dom';
 import type { User as UserType } from '../types';
 
@@ -19,10 +19,10 @@ export default function Navbar({
         <div className="flex items-center justify-between">
           <Link
             to="/"
-            className="flex items-center gap-3 text-emerald-700 transition-colors hover:text-emerald-800"
+            className="flex items-center gap-3 text-sky-600 transition-colors hover:text-sky-700"
           >
-            <div className="rounded-2xl bg-emerald-100 p-2">
-              <BookOpen className="h-6 w-6" />
+            <div className="rounded-2xl bg-sky-100 p-2">
+              <img src="/logo/logo.jpg" alt="Tiny Bookstore" className="h-6 w-6 rounded-lg object-cover" />
             </div>
             <div>
               <div className="text-lg font-bold tracking-tight text-stone-900">
@@ -42,7 +42,7 @@ export default function Navbar({
               className={({ isActive }) =>
                 `rounded-full px-4 py-2 text-sm font-medium transition-colors ${
                   isActive
-                    ? 'bg-stone-900 text-white'
+                    ? 'bg-sky-500 text-white'
                     : 'text-stone-600 hover:bg-stone-100 hover:text-stone-900'
                 }`
               }
@@ -54,14 +54,14 @@ export default function Navbar({
               className={({ isActive }) =>
                 `inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-colors ${
                   isActive
-                    ? 'bg-stone-900 text-white'
+                    ? 'bg-sky-500 text-white'
                     : 'text-stone-600 hover:bg-stone-100 hover:text-stone-900'
                 }`
               }
             >
               <ShoppingCart className="h-4 w-4" />
               Cart
-              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700">
+              <span className="rounded-full bg-sky-100 px-2 py-0.5 text-xs font-semibold text-sky-600">
                 {cartItemCount}
               </span>
             </NavLink>
@@ -71,7 +71,7 @@ export default function Navbar({
                 className={({ isActive }) =>
                   `rounded-full px-4 py-2 text-sm font-medium transition-colors ${
                     isActive
-                      ? 'bg-stone-900 text-white'
+                      ? 'bg-sky-500 text-white'
                       : 'text-stone-600 hover:bg-stone-100 hover:text-stone-900'
                   }`
                 }
@@ -120,7 +120,7 @@ export default function Navbar({
               </Link>
               <Link
                 to="/register"
-                className="rounded-full bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-emerald-700"
+                className="rounded-full bg-sky-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-sky-600"
               >
                 Create account
               </Link>

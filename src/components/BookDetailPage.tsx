@@ -71,7 +71,7 @@ export default function BookDetailPage({
         </p>
         <Link
           to="/"
-          className="inline-flex rounded-full bg-stone-900 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-stone-700"
+          className="inline-flex rounded-full bg-sky-500 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-sky-600"
         >
           Back to catalog
         </Link>
@@ -109,7 +109,7 @@ export default function BookDetailPage({
           <div className="flex flex-col p-6 lg:p-7">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
-                <div className="text-sm font-semibold uppercase tracking-[0.3em] text-emerald-600">
+                <div className="text-sm font-semibold uppercase tracking-[0.3em] text-sky-600">
                   Book details
                 </div>
                 <h1 className="mt-3 text-3xl font-black leading-tight text-stone-950 lg:text-[2rem]">
@@ -122,7 +122,7 @@ export default function BookDetailPage({
                 className={`rounded-full px-4 py-2 text-sm font-semibold ${
                   outOfStock
                     ? 'bg-red-100 text-red-600'
-                    : 'bg-emerald-100 text-emerald-700'
+                    : 'bg-sky-100 text-sky-600'
                 }`}
               >
                 {outOfStock ? 'Out of stock' : `${book.stock} in stock`}
@@ -163,7 +163,7 @@ export default function BookDetailPage({
               <button
                 onClick={() => onAddToCart(book)}
                 disabled={outOfStock}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-stone-950 px-5 py-4 text-sm font-semibold text-white transition-colors hover:bg-emerald-600 disabled:cursor-not-allowed disabled:bg-stone-300"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-sky-500 px-5 py-4 text-sm font-semibold text-white transition-colors hover:bg-sky-600 disabled:cursor-not-allowed disabled:bg-sky-200"
               >
                 <ShoppingCart className="h-4 w-4" />
                 {outOfStock ? 'Unavailable' : 'Add to cart'}

@@ -86,7 +86,7 @@ export default function ProfilePage({
     <div className="grid gap-6 xl:grid-cols-[0.95fr_1.35fr]">
       <section className="space-y-4 rounded-[2rem] border border-stone-200 bg-white p-6 shadow-sm">
         <div>
-          <div className="text-sm font-semibold uppercase tracking-[0.3em] text-emerald-600">
+          <div className="text-sm font-semibold uppercase tracking-[0.3em] text-sky-600">
             Account
           </div>
           <h1 className="mt-2 text-3xl font-black text-stone-900">
@@ -105,7 +105,7 @@ export default function ProfilePage({
         </div>
 
         {message && (
-          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+          <div className="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-600">
             {message}
           </div>
         )}
@@ -123,7 +123,7 @@ export default function ProfilePage({
             </label>
             <input
               id="profile-full-name"
-              className="w-full rounded-2xl border border-stone-300 px-4 py-3 outline-none transition focus:border-emerald-500"
+              className="w-full rounded-2xl border border-stone-300 px-4 py-3 outline-none transition focus:border-sky-500"
               value={fullName}
               onChange={(event) => setFullName(event.target.value)}
             />
@@ -135,7 +135,7 @@ export default function ProfilePage({
             </label>
             <input
               id="profile-username"
-              className="w-full rounded-2xl border border-stone-300 px-4 py-3 outline-none transition focus:border-emerald-500"
+              className="w-full rounded-2xl border border-stone-300 px-4 py-3 outline-none transition focus:border-sky-500"
               value={username}
               onChange={(event) => setUsername(event.target.value)}
             />
@@ -148,7 +148,7 @@ export default function ProfilePage({
             <input
               id="profile-email"
               type="email"
-              className="w-full rounded-2xl border border-stone-300 px-4 py-3 outline-none transition focus:border-emerald-500"
+              className="w-full rounded-2xl border border-stone-300 px-4 py-3 outline-none transition focus:border-sky-500"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
             />
@@ -157,7 +157,7 @@ export default function ProfilePage({
           <button
             type="submit"
             disabled={saving}
-            className="w-full rounded-full bg-stone-900 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-stone-700 disabled:cursor-not-allowed disabled:bg-stone-400"
+            className="w-full rounded-full bg-sky-500 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-sky-600 disabled:cursor-not-allowed disabled:bg-sky-300"
           >
             {saving ? 'Saving profile...' : 'Save changes'}
           </button>
@@ -197,7 +197,7 @@ export default function ProfilePage({
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
+                  <div className="rounded-full bg-sky-100 px-3 py-1 text-xs font-semibold text-sky-600">
                     {order.status}
                   </div>
                   <div className="mt-2 text-lg font-bold text-stone-900">

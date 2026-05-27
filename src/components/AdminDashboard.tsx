@@ -128,7 +128,7 @@ export default function AdminDashboard({
         body: {
           ...bookForm,
           categoryId: bookForm.categoryId ? Number(bookForm.categoryId) : null,
-          price: Number(bookForm.price),
+          price: Number(bookForm.price.toString().replace(/[.,\s]/g, '')),
           stock: Number(bookForm.stock),
         },
       });
@@ -296,19 +296,26 @@ export default function AdminDashboard({
 
   return (
     <div className="space-y-6">
-      <section className="rounded-[2rem] bg-gradient-to-br from-stone-900 via-stone-800 to-emerald-700 p-8 text-white shadow-lg">
+      <section 
+        className="relative overflow-hidden rounded-[2rem] bg-cover bg-center p-8 text-white shadow-lg"
+        style={{
+          backgroundImage: 'url(/logo/background.jpg)',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+        }}
+      >
         <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <div className="text-sm font-semibold uppercase tracking-[0.3em] text-emerald-200">
+            <div className="text-sm font-semibold uppercase tracking-[0.3em] text-white drop-shadow-lg">
               Admin dashboard
             </div>
-            <h1 className="mt-2 text-4xl font-black">Store control center</h1>
-            <p className="mt-3 max-w-2xl text-sm text-stone-200">
+            <h1 className="mt-2 text-4xl font-black drop-shadow-lg">Store control center</h1>
+            <p className="mt-3 max-w-2xl text-sm text-white drop-shadow-lg">
               Manage books, inspect customer activity, and review every purchase
               flowing through the bookstore.
             </p>
           </div>
-          <div className="rounded-3xl bg-white/10 px-5 py-4 text-sm text-stone-100">
+          <div className="rounded-3xl border border-white/40 bg-white/10 px-5 py-4 text-sm text-white drop-shadow-lg">
             Logged in as <span className="font-semibold">{user.username}</span>
           </div>
         </div>
@@ -317,7 +324,7 @@ export default function AdminDashboard({
       {(error || message) && (
         <div className="grid gap-3">
           {message && (
-            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+            <div className="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-600">
               {message}
             </div>
           )}
@@ -340,7 +347,7 @@ export default function AdminDashboard({
         </div>
         <div className="rounded-[2rem] border border-stone-200 bg-white p-6 shadow-sm">
           <div className="text-sm text-stone-500">Total revenue</div>
-          <div className="mt-2 text-3xl font-black text-stone-900">
+          <div className="mt-2 text-3xl font-black text-stone-900 whitespace-nowrap">
             {formatCurrency(totalRevenue)}
           </div>
         </div>
@@ -378,7 +385,7 @@ export default function AdminDashboard({
                   Title
                 </label>
                 <input
-                  className="w-full rounded-2xl border border-stone-300 px-4 py-3 outline-none transition focus:border-emerald-500"
+                  className="w-full rounded-2xl border border-stone-300 px-4 py-3 outline-none transition focus:border-sky-500"
                   value={bookForm.title}
                   onChange={(event) =>
                     setBookForm((current) => ({
@@ -395,7 +402,7 @@ export default function AdminDashboard({
                   Category
                 </label>
                 <select
-                  className="w-full rounded-2xl border border-stone-300 px-4 py-3 outline-none transition focus:border-emerald-500"
+                  className="w-full rounded-2xl border border-stone-300 px-4 py-3 outline-none transition focus:border-sky-500"
                   value={bookForm.categoryId}
                   onChange={(event) =>
                     setBookForm((current) => ({
@@ -418,7 +425,7 @@ export default function AdminDashboard({
                   Author
                 </label>
                 <input
-                  className="w-full rounded-2xl border border-stone-300 px-4 py-3 outline-none transition focus:border-emerald-500"
+                  className="w-full rounded-2xl border border-stone-300 px-4 py-3 outline-none transition focus:border-sky-500"
                   value={bookForm.author}
                   onChange={(event) =>
                     setBookForm((current) => ({
@@ -434,7 +441,7 @@ export default function AdminDashboard({
                   Cover URL
                 </label>
                 <input
-                  className="w-full rounded-2xl border border-stone-300 px-4 py-3 outline-none transition focus:border-emerald-500"
+                  className="w-full rounded-2xl border border-stone-300 px-4 py-3 outline-none transition focus:border-sky-500"
                   value={bookForm.cover}
                   onChange={(event) =>
                     setBookForm((current) => ({
@@ -450,10 +457,8 @@ export default function AdminDashboard({
                   Price
                 </label>
                 <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  className="w-full rounded-2xl border border-stone-300 px-4 py-3 outline-none transition focus:border-emerald-500"
+                  type="text"
+                  className="w-full rounded-2xl border border-stone-300 px-4 py-3 outline-none transition focus:border-sky-500"
                   value={bookForm.price}
                   onChange={(event) =>
                     setBookForm((current) => ({
@@ -473,7 +478,7 @@ export default function AdminDashboard({
                   type="number"
                   min="0"
                   step="1"
-                  className="w-full rounded-2xl border border-stone-300 px-4 py-3 outline-none transition focus:border-emerald-500"
+                  className="w-full rounded-2xl border border-stone-300 px-4 py-3 outline-none transition focus:border-sky-500"
                   value={bookForm.stock}
                   onChange={(event) =>
                     setBookForm((current) => ({
@@ -491,7 +496,7 @@ export default function AdminDashboard({
                 </label>
                 <textarea
                   rows={4}
-                  className="w-full rounded-2xl border border-stone-300 px-4 py-3 outline-none transition focus:border-emerald-500"
+                  className="w-full rounded-2xl border border-stone-300 px-4 py-3 outline-none transition focus:border-sky-500"
                   value={bookForm.description}
                   onChange={(event) =>
                     setBookForm((current) => ({
@@ -506,7 +511,7 @@ export default function AdminDashboard({
             <button
               type="submit"
               disabled={savingBook}
-              className="mt-6 w-full rounded-full bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-emerald-300"
+              className="mt-6 w-full rounded-full bg-sky-500 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-sky-600 disabled:cursor-not-allowed disabled:bg-sky-300"
             >
               {savingBook
                 ? 'Saving book...'
@@ -561,7 +566,7 @@ export default function AdminDashboard({
                           className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
                             entry.role === 'admin'
                               ? 'bg-amber-100 text-amber-800 hover:bg-amber-200'
-                              : 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'
+                              : 'bg-sky-100 text-sky-600 hover:bg-sky-200'
                           }`}
                         >
                           {entry.role === 'admin' ? 'Set as customer' : 'Promote to admin'}
@@ -595,7 +600,7 @@ export default function AdminDashboard({
                 <div>
                   <label className="mb-1 block text-sm font-medium text-stone-700">Name</label>
                   <input
-                    className="w-full rounded-2xl border border-stone-300 px-4 py-3 outline-none transition focus:border-emerald-500"
+                    className="w-full rounded-2xl border border-stone-300 px-4 py-3 outline-none transition focus:border-sky-500"
                     value={categoryForm.name}
                     onChange={(e) => setCategoryForm(curr => ({ ...curr, name: e.target.value }))}
                     required
@@ -604,7 +609,7 @@ export default function AdminDashboard({
                 <div>
                   <label className="mb-1 block text-sm font-medium text-stone-700">Description</label>
                   <input
-                    className="w-full rounded-2xl border border-stone-300 px-4 py-3 outline-none transition focus:border-emerald-500"
+                    className="w-full rounded-2xl border border-stone-300 px-4 py-3 outline-none transition focus:border-sky-500"
                     value={categoryForm.description}
                     onChange={(e) => setCategoryForm(curr => ({ ...curr, description: e.target.value }))}
                   />
@@ -614,7 +619,7 @@ export default function AdminDashboard({
                 <button
                   type="submit"
                   disabled={savingCategory}
-                  className="rounded-full bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-emerald-300"
+                  className="rounded-full bg-sky-500 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-sky-600 disabled:cursor-not-allowed disabled:bg-sky-300"
                 >
                   {savingCategory ? 'Saving...' : editingCategoryId ? 'Update' : 'Add category'}
                 </button>
@@ -743,7 +748,7 @@ export default function AdminDashboard({
                       </div>
 
                       <div className="text-right">
-                        <div className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
+                        <div className="rounded-full bg-sky-100 px-3 py-1 text-xs font-semibold text-sky-600">
                           {order.status}
                         </div>
                         <div className="mt-2 text-lg font-bold text-stone-900">

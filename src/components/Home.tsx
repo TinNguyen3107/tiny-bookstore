@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ShoppingCart } from 'lucide-react';
+import { ShoppingCart, ChevronDown, Search } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type { Book, CartItem, Category } from '../types';
 import { formatCurrency } from '../utils';
@@ -22,6 +22,10 @@ export default function Home({
 }: HomeProps) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
+  const [activeTab, setActiveTab] = useState<'recent' | 'all'>('recent');
+  const [showCategories, setShowCategories] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(8);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     apiRequest<Category[]>('/api/categories')
@@ -29,21 +33,139 @@ export default function Home({
       .catch(console.error);
   }, []);
 
-  const filteredBooks = selectedCategory
-    ? books.filter((b) => b.categoryId === selectedCategory)
-    : books;
+  const renderBookCard = (book: Book) => {
+    const cartQuantity =
+      cart.find((item) => item.bookId === book.id)?.quantity ?? 0;
+    const outOfStock = book.stock <= 0;
+
+    return (
+      <article
+        key={book.id}
+        className="group flex h-full flex-col overflow-hidden rounded-[1.8rem] border border-stone-200 bg-white shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-stone-300 hover:shadow-xl"
+      >
+        <Link to={`/books/${book.id}`} className="flex flex-1 flex-col">
+          <div className="relative aspect-[4/4.35] overflow-hidden bg-stone-100">
+            <div className="absolute inset-0 bg-gradient-to-t from-stone-950/20 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+            <div className="absolute left-3 top-3 z-10 flex items-center gap-2">
+              <span className="rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-700 backdrop-blur">
+                {book.categoryName || 'Uncategorized'}
+              </span>
+            </div>
+            <div className="absolute right-3 top-3 z-10">
+              <span
+                className={`rounded-full px-2.5 py-1 text-[11px] font-semibold shadow-sm ${
+                  outOfStock
+                    ? 'bg-red-100 text-red-600'
+                    : 'bg-sky-100 text-sky-600'
+                }`}
+              >
+                {outOfStock ? 'Out of stock' : `${book.stock} in stock`}
+              </span>
+            </div>
+
+            {book.cover ? (
+              <img
+                src={book.cover}
+                alt={book.title}
+                className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+              />
+            ) : (
+              <div className="flex h-full items-center justify-center text-stone-400">
+                No cover
+              </div>
+            )}
+
+            {cartQuantity > 0 && (
+              <div className="absolute bottom-3 left-3 z-10 rounded-full bg-stone-950 px-2.5 py-1 text-[11px] font-semibold text-white shadow-lg">
+                In cart: {cartQuantity}
+              </div>
+            )}
+          </div>
+
+          <div className="flex flex-1 flex-col p-4">
+            <div className="space-y-2.5">
+              <div>
+                <h2 className="line-clamp-2 text-xl font-black leading-tight text-stone-900">
+                  {book.title}
+                </h2>
+                <p className="mt-1 text-[15px] font-medium text-stone-500">
+                  {book.author}
+                </p>
+              </div>
+
+              <p className="line-clamp-3 text-[14px] leading-6 text-stone-600">
+                {book.description || 'A book ready for your next reading session.'}
+              </p>
+            </div>
+
+            <div className="mt-auto pt-5">
+              <div className="mb-3 flex items-end justify-between gap-3">
+                <div>
+                  <div className="text-[10px] uppercase tracking-[0.24em] text-stone-400">
+                    Price
+                  </div>
+                  <div className="mt-1 text-2xl font-black tracking-tight text-stone-950 whitespace-nowrap">
+                    {formatCurrency(book.price)}
+                  </div>
+                </div>
+
+                {!outOfStock && (
+                  <div className="rounded-2xl bg-sky-50 px-3 py-2 text-right">
+                    <div className="text-[9px] uppercase tracking-[0.2em] text-sky-600">
+                      Ready
+                    </div>
+                    <div className="text-[13px] font-bold text-sky-700">
+                      View detail
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </Link>
+
+        <div className="px-4 pb-4">
+          <button
+            onClick={() => onAddToCart(book)}
+            disabled={outOfStock}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-sky-400 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-sky-500 disabled:cursor-not-allowed disabled:bg-sky-200"
+          >
+            <ShoppingCart className="h-4 w-4" />
+            {outOfStock ? 'Unavailable' : 'Add to cart'}
+          </button>
+        </div>
+      </article>
+    );
+  };
+
+  const searchedBooks = books.filter(
+    (b) =>
+      b.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      b.author.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const recentBooks = [...searchedBooks]
+    .sort((a, b) => b.id - a.id)
+    .slice(0, 4);
 
   return (
     <div className="space-y-8">
-      <section className="overflow-hidden rounded-[2rem] bg-gradient-to-br from-emerald-600 via-emerald-500 to-lime-400 px-6 py-10 text-white shadow-lg sm:px-10">
-        <div className="max-w-3xl space-y-4">
-          <div className="text-sm font-semibold uppercase tracking-[0.3em] text-emerald-50/80">
+      <section 
+        className="relative overflow-hidden rounded-[2rem] bg-cover bg-center px-6 py-10 text-white shadow-lg sm:px-10"
+        style={{
+          backgroundImage: 'url(/logo/background.jpg)',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+        }}
+      >
+        <div className="relative max-w-3xl space-y-4">
+          <div className="text-sm font-semibold uppercase tracking-[0.3em] text-white drop-shadow-lg">
             Tiny Bookstore Collection
           </div>
-          <h1 className="text-4xl font-black leading-tight sm:text-5xl">
+          <h1 className="text-4xl font-black leading-tight drop-shadow-lg sm:text-5xl">
             Build your reading stack, then check out in one clean flow.
           </h1>
-          <p className="max-w-2xl text-base text-emerald-50/90 sm:text-lg">
+          <p className="max-w-2xl text-base text-white drop-shadow-lg sm:text-lg">
             Browse the catalog, add books to cart, adjust quantities, review your
             purchase history, and manage inventory from the same app.
           </p>
@@ -62,153 +184,192 @@ export default function Home({
         </div>
       ) : (
         <>
-          {categories.length > 0 && (
-            <div className="flex flex-col gap-4">
-              <div className="flex flex-wrap gap-2">
-                <button
-                  onClick={() => setSelectedCategory(null)}
-                  className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
-                    selectedCategory === null
-                      ? 'bg-stone-900 text-white'
-                      : 'bg-white text-stone-600 hover:bg-stone-100'
-                  }`}
-                >
-                  All Books
-                </button>
-                {categories.map((cat) => (
-                  <button
-                    key={cat.id}
-                    onClick={() => setSelectedCategory(cat.id)}
-                    className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
-                      selectedCategory === cat.id
-                        ? 'bg-stone-900 text-white'
-                        : 'bg-white text-stone-600 hover:bg-stone-100'
-                    }`}
-                  >
-                    {cat.name}
-                  </button>
-                ))}
-              </div>
-              
-              {selectedCategory && (
-                <div className="rounded-2xl border border-stone-200 bg-stone-50 p-5 text-stone-700 shadow-sm transition-all duration-300">
-                  <h3 className="mb-2 text-lg font-bold text-stone-900">
-                    {categories.find(c => c.id === selectedCategory)?.name}
-                  </h3>
-                  <p className="text-sm leading-relaxed text-stone-600">
-                    {categories.find(c => c.id === selectedCategory)?.description || 'No description available for this category.'}
-                  </p>
+          <div className="flex flex-col gap-4 border-b border-stone-200 pb-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-6">
+              <button
+                onClick={() => {
+                  setActiveTab('recent');
+                  setSelectedCategory(null);
+                  setShowCategories(false);
+                  setVisibleCount(8);
+                  setSearchQuery('');
+                }}
+                className={`pb-2 text-lg font-bold transition-colors ${
+                  activeTab === 'recent'
+                    ? 'border-b-2 border-sky-500 text-sky-600'
+                    : 'border-b-2 border-transparent text-stone-500 hover:text-stone-800'
+                }`}
+              >
+                Recent
+              </button>
+              <button
+                onClick={() => {
+                  setActiveTab('all');
+                  setVisibleCount(8);
+                }}
+                className={`pb-2 text-lg font-bold transition-colors ${
+                  activeTab === 'all'
+                    ? 'border-b-2 border-sky-500 text-sky-600'
+                    : 'border-b-2 border-transparent text-stone-500 hover:text-stone-800'
+                }`}
+              >
+                All Books
+              </button>
+            </div>
+
+            <div className="relative w-full sm:w-64">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
+              <input
+                type="text"
+                placeholder="Search by title or author..."
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  if (activeTab === 'recent' && e.target.value) {
+                    setActiveTab('all');
+                  }
+                  setVisibleCount(8);
+                }}
+                className="w-full rounded-full border border-stone-200 py-2 pl-10 pr-4 text-sm outline-none transition-all focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+              />
+            </div>
+          </div>
+
+          {activeTab === 'recent' && (
+            <div className="space-y-6">
+              {recentBooks.length > 0 ? (
+                <div className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
+                  {recentBooks.map(renderBookCard)}
+                </div>
+              ) : (
+                <div className="mt-6 rounded-3xl border border-dashed border-stone-300 py-12 text-center text-stone-500">
+                  No recent books found.
                 </div>
               )}
             </div>
           )}
 
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
-            {filteredBooks.map((book) => {
-              const cartQuantity =
-                cart.find((item) => item.bookId === book.id)?.quantity ?? 0;
-              const outOfStock = book.stock <= 0;
-
-              return (
-              <article
-                key={book.id}
-                className="group flex h-full flex-col overflow-hidden rounded-[1.8rem] border border-stone-200 bg-white shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-stone-300 hover:shadow-xl"
-              >
-                <Link to={`/books/${book.id}`} className="flex flex-1 flex-col">
-                  <div className="relative aspect-[4/4.35] overflow-hidden bg-stone-100">
-                    <div className="absolute inset-0 bg-gradient-to-t from-stone-950/20 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
-                    <div className="absolute left-3 top-3 z-10 flex items-center gap-2">
-                      <span className="rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-700 backdrop-blur">
-                        {book.categoryName || 'Uncategorized'}
-                      </span>
-                    </div>
-                    <div className="absolute right-3 top-3 z-10">
-                      <span
-                        className={`rounded-full px-2.5 py-1 text-[11px] font-semibold shadow-sm ${
-                          outOfStock
-                            ? 'bg-red-100 text-red-600'
-                            : 'bg-emerald-100 text-emerald-700'
+          {activeTab === 'all' && (
+            <div className="mt-6 space-y-8">
+              {categories.length > 0 && (
+                <div className="relative inline-block w-fit">
+                  <button
+                    onClick={() => setShowCategories(!showCategories)}
+                    className="flex items-center gap-2 rounded-full bg-sky-400 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-sky-500"
+                  >
+                    All Categories
+                    <ChevronDown className={`h-4 w-4 transition-transform ${showCategories ? 'rotate-180' : ''}`} />
+                  </button>
+                  
+                  {showCategories && (
+                    <div className="absolute left-0 top-full z-20 mt-2 w-64 max-h-[320px] overflow-y-auto rounded-2xl border border-stone-200 bg-white p-2 shadow-xl">
+                      <button
+                        onClick={() => {
+                          setSelectedCategory(null);
+                          setShowCategories(false);
+                          setVisibleCount(8);
+                        }}
+                        className={`w-full rounded-xl px-4 py-2 text-left text-sm font-medium transition-colors ${
+                          selectedCategory === null ? 'bg-sky-50 text-sky-700' : 'text-stone-700 hover:bg-stone-100'
                         }`}
                       >
-                        {outOfStock ? 'Out of stock' : `${book.stock} in stock`}
-                      </span>
+                        All Books
+                      </button>
+                      {categories.map((cat) => (
+                        <button
+                          key={cat.id}
+                          onClick={() => {
+                            setSelectedCategory(cat.id);
+                            setShowCategories(false);
+                            setVisibleCount(8);
+                          }}
+                          className={`w-full rounded-xl px-4 py-2 text-left text-sm font-medium transition-colors ${
+                            selectedCategory === cat.id ? 'bg-sky-50 text-sky-700' : 'text-stone-700 hover:bg-stone-100'
+                          }`}
+                        >
+                          {cat.name}
+                        </button>
+                      ))}
                     </div>
-
-                    {book.cover ? (
-                      <img
-                        src={book.cover}
-                        alt={book.title}
-                        className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                      />
-                    ) : (
-                      <div className="flex h-full items-center justify-center text-stone-400">
-                        No cover
-                      </div>
-                    )}
-
-                    {cartQuantity > 0 && (
-                      <div className="absolute bottom-3 left-3 z-10 rounded-full bg-stone-950 px-2.5 py-1 text-[11px] font-semibold text-white shadow-lg">
-                        In cart: {cartQuantity}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex flex-1 flex-col p-4">
-                    <div className="space-y-2.5">
-                      <div>
-                        <h2 className="line-clamp-2 text-xl font-black leading-tight text-stone-900">
-                          {book.title}
-                        </h2>
-                        <p className="mt-1 text-[15px] font-medium text-stone-500">
-                          {book.author}
-                        </p>
-                      </div>
-
-                      <p className="line-clamp-3 text-[14px] leading-6 text-stone-600">
-                        {book.description || 'A book ready for your next reading session.'}
-                      </p>
-                    </div>
-
-                    <div className="mt-auto pt-5">
-                      <div className="mb-3 flex items-end justify-between gap-3">
-                        <div>
-                          <div className="text-[10px] uppercase tracking-[0.24em] text-stone-400">
-                            Price
-                          </div>
-                          <div className="mt-1 text-[2rem] font-black tracking-tight text-stone-950">
-                            {formatCurrency(book.price)}
-                          </div>
-                        </div>
-
-                        {!outOfStock && (
-                          <div className="rounded-2xl bg-emerald-50 px-3 py-2 text-right">
-                            <div className="text-[9px] uppercase tracking-[0.2em] text-emerald-600">
-                              Ready
-                            </div>
-                            <div className="text-[13px] font-bold text-emerald-800">
-                              View detail
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </Link>
-
-                <div className="px-4 pb-4">
-                  <button
-                    onClick={() => onAddToCart(book)}
-                    disabled={outOfStock}
-                    className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-stone-950 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-emerald-600 disabled:cursor-not-allowed disabled:bg-stone-300"
-                  >
-                    <ShoppingCart className="h-4 w-4" />
-                    {outOfStock ? 'Unavailable' : 'Add to cart'}
-                  </button>
+                  )}
                 </div>
-              </article>
-            );
-            })}
-          </div>
+              )}
+
+              <div className="space-y-12">
+                {selectedCategory === null ? (
+                  <div className="space-y-8">
+                    {searchedBooks.length > 0 ? (
+                      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
+                        {[...searchedBooks]
+                          .sort((a, b) => b.id - a.id)
+                          .slice(0, visibleCount)
+                          .map(renderBookCard)}
+                      </div>
+                    ) : (
+                      <div className="rounded-3xl border border-dashed border-stone-300 py-12 text-center text-stone-500">
+                        No books match your search.
+                      </div>
+                    )}
+                    
+                    {visibleCount < searchedBooks.length && (
+                      <div className="flex justify-center">
+                        <button
+                          onClick={() => setVisibleCount((prev) => prev + 8)}
+                          className="rounded-full border border-stone-200 bg-white px-8 py-3 text-sm font-semibold text-stone-600 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-stone-50 hover:text-stone-900 hover:shadow-md"
+                        >
+                          See more
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  categories
+                    .filter((cat) => selectedCategory === cat.id)
+                    .map((cat) => {
+                      const catBooks = searchedBooks.filter((b) => b.categoryId === cat.id);
+                      
+                      return (
+                        <div key={cat.id} className="space-y-6">
+                          <div className="rounded-2xl border border-stone-200 bg-stone-50 p-6 shadow-sm">
+                            <h3 className="mb-2 text-2xl font-black text-stone-900">
+                              {cat.name}
+                            </h3>
+                            <p className="text-stone-600">
+                              {cat.description || 'No description available for this category.'}
+                            </p>
+                          </div>
+                          {catBooks.length > 0 ? (
+                            <div className="space-y-8">
+                              <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
+                                {[...catBooks]
+                                  .sort((a, b) => b.id - a.id)
+                                  .slice(0, visibleCount)
+                                  .map(renderBookCard)}
+                              </div>
+                              
+                              {visibleCount < catBooks.length && (
+                                <div className="flex justify-center">
+                                  <button
+                                    onClick={() => setVisibleCount((prev) => prev + 8)}
+                                    className="rounded-full border border-stone-200 bg-white px-8 py-3 text-sm font-semibold text-stone-600 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-stone-50 hover:text-stone-900 hover:shadow-md"
+                                  >
+                                    See more
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="rounded-3xl border border-dashed border-stone-300 py-12 text-center text-stone-500">
+                              No books found matching your search in this category.
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                )}
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>

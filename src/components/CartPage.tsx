@@ -57,7 +57,7 @@ export default function CartPage({
         </div>
 
         {message && (
-          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+          <div className="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-600">
             {message}
           </div>
         )}
@@ -76,7 +76,7 @@ export default function CartPage({
             </p>
             <Link
               to="/"
-              className="mt-4 inline-flex rounded-full bg-stone-900 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-stone-700"
+              className="mt-4 inline-flex rounded-full bg-sky-500 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-sky-600"
             >
               Back to catalog
             </Link>
@@ -191,7 +191,7 @@ export default function CartPage({
         <button
           onClick={() => void handleCheckout()}
           disabled={cart.length === 0 || !user || isCheckingOut}
-          className="mt-6 w-full rounded-full bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-emerald-300"
+          className="mt-6 w-full rounded-full bg-sky-500 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-sky-600 disabled:cursor-not-allowed disabled:bg-sky-300"
         >
           {isCheckingOut ? 'Processing order...' : 'Checkout now'}
         </button>
