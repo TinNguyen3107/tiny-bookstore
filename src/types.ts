@@ -4,12 +4,20 @@ export interface Book {
   id: number;
   categoryId?: number | null;
   categoryName?: string | null;
+  bookCode?: string | null;
   title: string;
   author: string;
+  translator?: string | null;
+  publisher?: string | null;
+  publishedYear?: number | null;
   description: string;
   price: number;
   cover: string;
   stock: number;
+  weight?: number | null;
+  dimensions?: string | null;
+  pages?: number | null;
+  format?: string | null;
   createdAt: string;
 }
 
@@ -30,6 +38,8 @@ export interface User {
 
 export interface CartItem {
   bookId: number;
+  bookCode?: string | null;
+  format?: string | null;
   title: string;
   author: string;
   price: number;
@@ -40,6 +50,8 @@ export interface CartItem {
 
 export interface OrderItem {
   bookId: number | null;
+  bookCode?: string | null;
+  format?: string | null;
   title: string;
   author: string;
   cover: string;

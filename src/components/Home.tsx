@@ -24,8 +24,18 @@ export default function Home({
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<'recent' | 'all'>('recent');
   const [showCategories, setShowCategories] = useState(false);
+  const [showFormats, setShowFormats] = useState(false);
+  const [showPublishers, setShowPublishers] = useState(false);
+  const [showSort, setShowSort] = useState(false);
   const [visibleCount, setVisibleCount] = useState(8);
   const [searchQuery, setSearchQuery] = useState('');
+
+  const [selectedFormat, setSelectedFormat] = useState<string | null>(null);
+  const [selectedPublisher, setSelectedPublisher] = useState<string | null>(null);
+  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest' | null>(null);
+
+  const availableFormats = Array.from(new Set(books.map(b => b.format).filter(Boolean))) as string[];
+  const availablePublishers = Array.from(new Set(books.map(b => b.publisher).filter(Boolean))) as string[];
 
   useEffect(() => {
     apiRequest<Category[]>('/api/categories')
@@ -51,7 +61,7 @@ export default function Home({
                 {book.categoryName || 'Uncategorized'}
               </span>
             </div>
-            <div className="absolute right-3 top-3 z-10">
+            <div className="absolute right-3 bottom-3 z-10">
               <span
                 className={`rounded-full px-2.5 py-1 text-[11px] font-semibold shadow-sm ${
                   outOfStock
@@ -138,7 +148,7 @@ export default function Home({
     );
   };
 
-  const searchedBooks = books.filter(
+  let searchedBooks = books.filter(
     (b) =>
       b.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       b.author.toLowerCase().includes(searchQuery.toLowerCase())
@@ -147,6 +157,21 @@ export default function Home({
   const recentBooks = [...searchedBooks]
     .sort((a, b) => b.id - a.id)
     .slice(0, 4);
+
+  if (selectedFormat) {
+    searchedBooks = searchedBooks.filter(b => b.format === selectedFormat);
+  }
+  if (selectedPublisher) {
+    searchedBooks = searchedBooks.filter(b => b.publisher === selectedPublisher);
+  }
+
+  if (sortOrder === 'newest') {
+    searchedBooks.sort((a, b) => (b.publishedYear || 0) - (a.publishedYear || 0));
+  } else if (sortOrder === 'oldest') {
+    searchedBooks.sort((a, b) => (a.publishedYear || 0) - (b.publishedYear || 0));
+  } else {
+    searchedBooks.sort((a, b) => b.id - a.id);
+  }
 
   return (
     <div className="space-y-8">
@@ -193,6 +218,9 @@ export default function Home({
                   setShowCategories(false);
                   setVisibleCount(8);
                   setSearchQuery('');
+                  setSelectedFormat(null);
+                  setSelectedPublisher(null);
+                  setSortOrder(null);
                 }}
                 className={`pb-2 text-lg font-bold transition-colors ${
                   activeTab === 'recent'
@@ -251,13 +279,19 @@ export default function Home({
 
           {activeTab === 'all' && (
             <div className="mt-6 space-y-8">
-              {categories.length > 0 && (
-                <div className="relative inline-block w-fit">
-                  <button
-                    onClick={() => setShowCategories(!showCategories)}
-                    className="flex items-center gap-2 rounded-full bg-sky-400 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-sky-500"
-                  >
-                    All Categories
+              <div className="flex flex-wrap items-center gap-4">
+                {categories.length > 0 && (
+                  <div className="relative inline-block w-fit">
+                    <button
+                      onClick={() => {
+                        setShowCategories(!showCategories);
+                        setShowFormats(false);
+                        setShowPublishers(false);
+                        setShowSort(false);
+                      }}
+                      className="flex items-center gap-2 rounded-full bg-sky-400 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-sky-500"
+                    >
+                      {selectedCategory ? categories.find(c => c.id === selectedCategory)?.name || 'Categories' : 'All Categories'}
                     <ChevronDown className={`h-4 w-4 transition-transform ${showCategories ? 'rotate-180' : ''}`} />
                   </button>
                   
@@ -295,13 +329,164 @@ export default function Home({
                 </div>
               )}
 
-              <div className="space-y-12">
+              {availableFormats.length > 0 && (
+                <div className="relative inline-block w-fit">
+                  <button
+                    onClick={() => {
+                      setShowFormats(!showFormats);
+                      setShowCategories(false);
+                      setShowPublishers(false);
+                      setShowSort(false);
+                    }}
+                    className="flex items-center gap-2 rounded-full border border-stone-300 bg-white px-5 py-2.5 text-sm font-medium text-stone-700 transition-colors hover:bg-stone-50"
+                  >
+                    {selectedFormat || 'All Formats'}
+                    <ChevronDown className={`h-4 w-4 transition-transform ${showFormats ? 'rotate-180' : ''}`} />
+                  </button>
+                  
+                  {showFormats && (
+                    <div className="absolute left-0 top-full z-20 mt-2 w-56 max-h-[320px] overflow-y-auto rounded-2xl border border-stone-200 bg-white p-2 shadow-xl">
+                      <button
+                        onClick={() => {
+                          setSelectedFormat(null);
+                          setShowFormats(false);
+                          setVisibleCount(8);
+                        }}
+                        className={`w-full rounded-xl px-4 py-2 text-left text-sm font-medium transition-colors ${
+                          selectedFormat === null ? 'bg-stone-100 text-stone-900' : 'text-stone-700 hover:bg-stone-50'
+                        }`}
+                      >
+                        All Formats
+                      </button>
+                      {availableFormats.map((f) => (
+                        <button
+                          key={f}
+                          onClick={() => {
+                            setSelectedFormat(f);
+                            setShowFormats(false);
+                            setVisibleCount(8);
+                          }}
+                          className={`w-full rounded-xl px-4 py-2 text-left text-sm font-medium transition-colors ${
+                            selectedFormat === f ? 'bg-stone-100 text-stone-900' : 'text-stone-700 hover:bg-stone-50'
+                          }`}
+                        >
+                          {f}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {availablePublishers.length > 0 && (
+                <div className="relative inline-block w-fit">
+                  <button
+                    onClick={() => {
+                      setShowPublishers(!showPublishers);
+                      setShowCategories(false);
+                      setShowFormats(false);
+                      setShowSort(false);
+                    }}
+                    className="flex items-center gap-2 rounded-full border border-stone-300 bg-white px-5 py-2.5 text-sm font-medium text-stone-700 transition-colors hover:bg-stone-50"
+                  >
+                    {selectedPublisher || 'All Publishers'}
+                    <ChevronDown className={`h-4 w-4 transition-transform ${showPublishers ? 'rotate-180' : ''}`} />
+                  </button>
+                  
+                  {showPublishers && (
+                    <div className="absolute left-0 top-full z-20 mt-2 w-64 max-h-[320px] overflow-y-auto rounded-2xl border border-stone-200 bg-white p-2 shadow-xl">
+                      <button
+                        onClick={() => {
+                          setSelectedPublisher(null);
+                          setShowPublishers(false);
+                          setVisibleCount(8);
+                        }}
+                        className={`w-full rounded-xl px-4 py-2 text-left text-sm font-medium transition-colors ${
+                          selectedPublisher === null ? 'bg-stone-100 text-stone-900' : 'text-stone-700 hover:bg-stone-50'
+                        }`}
+                      >
+                        All Publishers
+                      </button>
+                      {availablePublishers.map((p) => (
+                        <button
+                          key={p}
+                          onClick={() => {
+                            setSelectedPublisher(p);
+                            setShowPublishers(false);
+                            setVisibleCount(8);
+                          }}
+                          className={`w-full rounded-xl px-4 py-2 text-left text-sm font-medium transition-colors ${
+                            selectedPublisher === p ? 'bg-stone-100 text-stone-900' : 'text-stone-700 hover:bg-stone-50'
+                          }`}
+                        >
+                          {p}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="relative inline-block w-fit">
+                <button
+                  onClick={() => {
+                    setShowSort(!showSort);
+                    setShowCategories(false);
+                    setShowFormats(false);
+                    setShowPublishers(false);
+                  }}
+                  className="flex items-center gap-2 rounded-full border border-stone-300 bg-white px-5 py-2.5 text-sm font-medium text-stone-700 transition-colors hover:bg-stone-50"
+                >
+                  {sortOrder === 'newest' ? 'Newest Published' : sortOrder === 'oldest' ? 'Oldest Published' : 'Default Sorting'}
+                  <ChevronDown className={`h-4 w-4 transition-transform ${showSort ? 'rotate-180' : ''}`} />
+                </button>
+                
+                {showSort && (
+                  <div className="absolute left-0 top-full z-20 mt-2 w-56 max-h-[320px] overflow-y-auto rounded-2xl border border-stone-200 bg-white p-2 shadow-xl">
+                    <button
+                      onClick={() => {
+                        setSortOrder(null);
+                        setShowSort(false);
+                      }}
+                      className={`w-full rounded-xl px-4 py-2 text-left text-sm font-medium transition-colors ${
+                        sortOrder === null ? 'bg-stone-100 text-stone-900' : 'text-stone-700 hover:bg-stone-50'
+                      }`}
+                    >
+                      Default Sorting
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSortOrder('newest');
+                        setShowSort(false);
+                      }}
+                      className={`w-full rounded-xl px-4 py-2 text-left text-sm font-medium transition-colors ${
+                        sortOrder === 'newest' ? 'bg-stone-100 text-stone-900' : 'text-stone-700 hover:bg-stone-50'
+                      }`}
+                    >
+                      Newest Published
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSortOrder('oldest');
+                        setShowSort(false);
+                      }}
+                      className={`w-full rounded-xl px-4 py-2 text-left text-sm font-medium transition-colors ${
+                        sortOrder === 'oldest' ? 'bg-stone-100 text-stone-900' : 'text-stone-700 hover:bg-stone-50'
+                      }`}
+                    >
+                      Oldest Published
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-12">
                 {selectedCategory === null ? (
                   <div className="space-y-8">
                     {searchedBooks.length > 0 ? (
                       <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
-                        {[...searchedBooks]
-                          .sort((a, b) => b.id - a.id)
+                        {searchedBooks
                           .slice(0, visibleCount)
                           .map(renderBookCard)}
                       </div>
@@ -341,8 +526,7 @@ export default function Home({
                           {catBooks.length > 0 ? (
                             <div className="space-y-8">
                               <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
-                                {[...catBooks]
-                                  .sort((a, b) => b.id - a.id)
+                                {catBooks
                                   .slice(0, visibleCount)
                                   .map(renderBookCard)}
                               </div>

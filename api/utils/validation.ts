@@ -49,10 +49,18 @@ export function validateProfileUpdateData(data: any): { isValid: boolean; error?
 
 export function validateBookData(data: any): { isValid: boolean; error?: string; value?: any } {
   const categoryId = data.categoryId ? Number(data.categoryId) : null;
+  const bookCode = String(data.bookCode ?? "").trim() || null;
   const title = String(data.title ?? "").trim();
   const author = String(data.author ?? "").trim();
+  const translator = String(data.translator ?? "").trim() || null;
+  const publisher = String(data.publisher ?? "").trim() || null;
+  const publishedYear = data.publishedYear ? Number(data.publishedYear) : null;
   const description = String(data.description ?? "").trim();
   const cover = String(data.cover ?? "").trim();
+  const weight = data.weight ? Number(data.weight) : null;
+  const dimensions = String(data.dimensions ?? "").trim() || null;
+  const pages = data.pages ? Number(data.pages) : null;
+  const format = String(data.format ?? "").trim() || null;
   const price = Number(data.price);
   const stock = Number(data.stock);
 
@@ -66,7 +74,7 @@ export function validateBookData(data: any): { isValid: boolean; error?: string;
 
   return {
     isValid: true,
-    value: { categoryId, title, author, description, cover, price, stock },
+    value: { categoryId, bookCode, title, author, translator, publisher, publishedYear, description, cover, price, stock, weight, dimensions, pages, format },
   };
 }
 

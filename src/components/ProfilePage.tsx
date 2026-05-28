@@ -226,7 +226,21 @@ export default function ProfilePage({
                         <div className="font-semibold text-stone-900">
                           {item.title}
                         </div>
-                        <div className="text-sm text-stone-500">{item.author}</div>
+                        <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-stone-500">
+                          <span>{item.author}</span>
+                          {item.bookCode && (
+                            <>
+                              <span className="text-stone-300">•</span>
+                              <span className="font-mono text-xs">{item.bookCode}</span>
+                            </>
+                          )}
+                          {item.format && (
+                            <>
+                              <span className="text-stone-300">•</span>
+                              <span>{item.format}</span>
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
 

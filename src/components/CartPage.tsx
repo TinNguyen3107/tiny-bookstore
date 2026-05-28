@@ -109,7 +109,21 @@ export default function CartPage({
                         <h2 className="text-xl font-bold text-stone-900">
                           {item.title}
                         </h2>
-                        <p className="text-sm text-stone-500">{item.author}</p>
+                        <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-stone-500">
+                          <span>{item.author}</span>
+                          {item.bookCode && (
+                            <>
+                              <span className="text-stone-300">•</span>
+                              <span className="font-mono text-xs">{item.bookCode}</span>
+                            </>
+                          )}
+                          {item.format && (
+                            <>
+                              <span className="text-stone-300">•</span>
+                              <span>{item.format}</span>
+                            </>
+                          )}
+                        </div>
                       </div>
                       <div className="text-right">
                         <div className="text-sm text-stone-400">Unit price</div>

@@ -91,6 +91,8 @@ export default function App() {
         return [
           {
             ...item,
+            bookCode: latestBook.bookCode,
+            format: latestBook.format,
             title: latestBook.title,
             author: latestBook.author,
             price: latestBook.price,
@@ -125,6 +127,8 @@ export default function App() {
           ...currentCart,
           {
             bookId: book.id,
+            bookCode: book.bookCode,
+            format: book.format,
             title: book.title,
             author: book.author,
             price: book.price,

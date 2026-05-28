@@ -148,17 +148,6 @@ export default function BookDetailPage({
               </div>
             </div>
 
-            <div className="mt-6">
-              <h2 className="text-sm font-semibold uppercase tracking-[0.28em] text-stone-400">
-                Description
-              </h2>
-              <div className="mt-3 max-h-52 overflow-y-auto rounded-3xl border border-stone-200 bg-stone-50 p-4">
-                <p className="whitespace-pre-line pr-2 text-base leading-8 text-stone-600">
-                  {book.description || 'This book does not have a description yet.'}
-                </p>
-              </div>
-            </div>
-
             <div className="mt-auto pt-6">
               <button
                 onClick={() => onAddToCart(book)}
@@ -172,6 +161,115 @@ export default function BookDetailPage({
           </div>
         </div>
       </section>
+
+      {/* Book Information Section */}
+      <section className="rounded-[2rem] border border-stone-200 bg-white p-6 shadow-sm lg:p-7">
+        <h2 className="text-xl font-black text-stone-950">Thông tin chi tiết</h2>
+        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {book.bookCode && (
+            <div className="rounded-2xl bg-stone-50 p-4">
+              <div className="text-xs uppercase tracking-[0.24em] text-stone-500">
+                Mã hàng
+              </div>
+              <div className="mt-2 text-sm font-semibold text-stone-900">
+                {book.bookCode}
+              </div>
+            </div>
+          )}
+          
+          {book.publisher && (
+            <div className="rounded-2xl bg-stone-50 p-4">
+              <div className="text-xs uppercase tracking-[0.24em] text-stone-500">
+                Nhà xuất bản
+              </div>
+              <div className="mt-2 text-sm font-semibold text-stone-900">
+                {book.publisher}
+              </div>
+            </div>
+          )}
+
+          {book.translator && (
+            <div className="rounded-2xl bg-stone-50 p-4">
+              <div className="text-xs uppercase tracking-[0.24em] text-stone-500">
+                Người dịch
+              </div>
+              <div className="mt-2 text-sm font-semibold text-stone-900">
+                {book.translator}
+              </div>
+            </div>
+          )}
+
+          {book.publishedYear && (
+            <div className="rounded-2xl bg-stone-50 p-4">
+              <div className="text-xs uppercase tracking-[0.24em] text-stone-500">
+                Năm xuất bản
+              </div>
+              <div className="mt-2 text-sm font-semibold text-stone-900">
+                {book.publishedYear}
+              </div>
+            </div>
+          )}
+
+          {book.weight && (
+            <div className="rounded-2xl bg-stone-50 p-4">
+              <div className="text-xs uppercase tracking-[0.24em] text-stone-500">
+                Trọng lượng
+              </div>
+              <div className="mt-2 text-sm font-semibold text-stone-900">
+                {book.weight} g
+              </div>
+            </div>
+          )}
+
+          {book.dimensions && (
+            <div className="rounded-2xl bg-stone-50 p-4">
+              <div className="text-xs uppercase tracking-[0.24em] text-stone-500">
+                Kích thước
+              </div>
+              <div className="mt-2 text-sm font-semibold text-stone-900">
+                {book.dimensions}
+              </div>
+            </div>
+          )}
+
+          {book.pages && (
+            <div className="rounded-2xl bg-stone-50 p-4">
+              <div className="text-xs uppercase tracking-[0.24em] text-stone-500">
+                Số trang
+              </div>
+              <div className="mt-2 text-sm font-semibold text-stone-900">
+                {book.pages}
+              </div>
+            </div>
+          )}
+
+          {book.format && (
+            <div className="rounded-2xl bg-stone-50 p-4">
+              <div className="text-xs uppercase tracking-[0.24em] text-stone-500">
+                Hình thức
+              </div>
+              <div className="mt-2 text-sm font-semibold text-stone-900">
+                {book.format}
+              </div>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* Description Section */}
+      {book.description && (
+        <section className="rounded-[2rem] border border-stone-200 bg-white p-6 shadow-sm lg:p-7">
+          <h2 className="text-xl font-black text-stone-950">Mô tả sản phẩm</h2>
+          
+          <div className="mt-4">
+            <div className="mt-3 max-h-[400px] overflow-y-auto rounded-2xl border border-stone-200 bg-stone-50 p-4 pr-3">
+              <p className="whitespace-pre-line text-base leading-8 text-stone-600">
+                {book.description}
+              </p>
+            </div>
+          </div>
+        </section>
+      )}
     </div>
   );
 }

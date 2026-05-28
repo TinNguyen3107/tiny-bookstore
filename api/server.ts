@@ -69,12 +69,20 @@ interface BookRow {
   id: number;
   category_id?: number | null;
   category_name?: string | null;
+  book_code?: string | null;
   title: string;
   author: string | null;
+  translator: string | null;
+  publisher: string | null;
+  published_year: number | null;
   description: string | null;
   price: string | number;
   cover: string | null;
   stock: number;
+  weight: number | null;
+  dimensions: string | null;
+  pages: number | null;
+  format: string | null;
   created_at: Date | string;
 }
 
@@ -82,12 +90,20 @@ interface PublicBook {
   id: number;
   categoryId?: number | null;
   categoryName?: string | null;
+  bookCode?: string | null;
   title: string;
   author: string;
+  translator?: string | null;
+  publisher?: string | null;
+  publishedYear?: number | null;
   description: string;
   price: number;
   cover: string;
   stock: number;
+  weight?: number | null;
+  dimensions?: string | null;
+  pages?: number | null;
+  format?: string | null;
   createdAt: string;
 }
 
@@ -103,6 +119,8 @@ interface OrderJoinRow {
   email: string | null;
   role: UserRole;
   book_id: number | null;
+  book_code?: string | null;
+  format?: string | null;
   title_snapshot: string;
   author_snapshot: string | null;
   cover_snapshot: string | null;
@@ -118,6 +136,8 @@ interface OrderResponse {
   user: PublicUser;
   items: Array<{
     bookId: number | null;
+    bookCode?: string | null;
+    format?: string | null;
     title: string;
     author: string;
     cover: string;
@@ -209,12 +229,20 @@ function serializeBook(book: BookRow): PublicBook {
     id: book.id,
     categoryId: book.category_id ?? null,
     categoryName: book.category_name ?? null,
+    bookCode: book.book_code ?? null,
     title: book.title,
     author: book.author ?? "Unknown author",
+    translator: book.translator ?? null,
+    publisher: book.publisher ?? null,
+    publishedYear: book.published_year ?? null,
     description: book.description ?? "",
     price: Number(book.price),
     cover: book.cover ?? "",
     stock: Number(book.stock),
+    weight: book.weight ?? null,
+    dimensions: book.dimensions ?? null,
+    pages: book.pages ?? null,
+    format: book.format ?? null,
     createdAt: new Date(book.created_at).toISOString(),
   };
 }
@@ -314,6 +342,62 @@ async function setupDatabase() {
     "books",
     "created_at",
     "ALTER TABLE books ADD COLUMN created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP AFTER stock",
+  );
+
+  // Categories table (must exist before adding category_id FK to books)
+  await pool.execute(`
+    CREATE TABLE IF NOT EXISTS categories (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      name VARCHAR(150) NOT NULL,
+      description TEXT NULL
+    )
+  `);
+
+  // New book columns added for extended book info
+  await ensureColumn(
+    "books",
+    "category_id",
+    "ALTER TABLE books ADD COLUMN category_id INT NULL AFTER id",
+  );
+  await ensureColumn(
+    "books",
+    "book_code",
+    "ALTER TABLE books ADD COLUMN book_code VARCHAR(100) NULL AFTER category_id",
+  );
+  await ensureColumn(
+    "books",
+    "translator",
+    "ALTER TABLE books ADD COLUMN translator VARCHAR(150) NULL AFTER author",
+  );
+  await ensureColumn(
+    "books",
+    "publisher",
+    "ALTER TABLE books ADD COLUMN publisher VARCHAR(150) NULL AFTER translator",
+  );
+  await ensureColumn(
+    "books",
+    "published_year",
+    "ALTER TABLE books ADD COLUMN published_year INT NULL AFTER publisher",
+  );
+  await ensureColumn(
+    "books",
+    "weight",
+    "ALTER TABLE books ADD COLUMN weight DECIMAL(10, 2) NULL AFTER stock",
+  );
+  await ensureColumn(
+    "books",
+    "dimensions",
+    "ALTER TABLE books ADD COLUMN dimensions VARCHAR(100) NULL AFTER weight",
+  );
+  await ensureColumn(
+    "books",
+    "pages",
+    "ALTER TABLE books ADD COLUMN pages INT NULL AFTER dimensions",
+  );
+  await ensureColumn(
+    "books",
+    "format",
+    "ALTER TABLE books ADD COLUMN format VARCHAR(100) NULL AFTER pages",
   );
 
   await pool.execute(`
@@ -427,7 +511,7 @@ async function requireAdmin(req: express.Request, res: express.Response) {
 async function fetchBooks() {
   const rawResult = await pool.execute(
     `
-      SELECT b.id, b.category_id, c.name AS category_name, b.title, b.author, b.description, b.price, b.cover, b.stock, b.created_at
+      SELECT b.id, b.category_id, c.name AS category_name, b.book_code, b.title, b.author, b.translator, b.publisher, b.published_year, b.description, b.price, b.cover, b.stock, b.weight, b.dimensions, b.pages, b.format, b.created_at
       FROM books b
       LEFT JOIN categories c ON b.category_id = c.id
       ORDER BY b.created_at DESC, b.id DESC
@@ -456,10 +540,13 @@ async function fetchOrders(whereClause = "1 = 1", params: unknown[] = []) {
         oi.author_snapshot,
         oi.cover_snapshot,
         oi.price_at_purchase,
-        oi.quantity
+        oi.quantity,
+        b.book_code,
+        b.format
       FROM orders o
       INNER JOIN users u ON u.id = o.user_id
       INNER JOIN order_items oi ON oi.order_id = o.id
+      LEFT JOIN books b ON b.id = oi.book_id
       WHERE ${whereClause}
       ORDER BY o.created_at DESC, o.id DESC, oi.id ASC
     `,
@@ -493,6 +580,8 @@ async function fetchOrders(whereClause = "1 = 1", params: unknown[] = []) {
 
     order.items.push({
       bookId: row.book_id,
+      bookCode: row.book_code ?? null,
+      format: row.format ?? null,
       title: row.title_snapshot,
       author: row.author_snapshot ?? "Unknown author",
       cover: row.cover_snapshot ?? "",
@@ -693,7 +782,7 @@ app.get("/api/books/:id", async (req, res) => {
     }
 
     const rawResult = await pool.execute(
-      `SELECT b.id, b.category_id, c.name AS category_name, b.title, b.author, b.description, b.price, b.cover, b.stock, b.created_at FROM books b LEFT JOIN categories c ON b.category_id = c.id WHERE b.id = ? LIMIT 1`,
+      `SELECT b.id, b.category_id, c.name AS category_name, b.book_code, b.title, b.author, b.translator, b.publisher, b.published_year, b.description, b.price, b.cover, b.stock, b.weight, b.dimensions, b.pages, b.format, b.created_at FROM books b LEFT JOIN categories c ON b.category_id = c.id WHERE b.id = ? LIMIT 1`,
       [bookId],
     );
 
@@ -729,7 +818,7 @@ app.post("/api/orders", async (req, res) => {
     tx = await pool.begin();
 
     const rawBooks = await tx.execute(
-      `SELECT b.id, b.category_id, c.name AS category_name, b.title, b.author, b.description, b.price, b.cover, b.stock, b.created_at FROM books b LEFT JOIN categories c ON b.category_id = c.id WHERE b.id IN (${placeholders})`,
+      `SELECT b.id, b.category_id, c.name AS category_name, b.book_code, b.title, b.author, b.translator, b.publisher, b.published_year, b.description, b.price, b.cover, b.stock, b.weight, b.dimensions, b.pages, b.format, b.created_at FROM books b LEFT JOIN categories c ON b.category_id = c.id WHERE b.id IN (${placeholders})`,
       bookIds,
     );
     const bookRows = getRows<BookRow>(rawBooks);
@@ -941,18 +1030,18 @@ app.post("/api/admin/books", async (req, res) => {
       return res.status(400).json({ message: parsed.error });
     }
 
-    const { categoryId, title, author, description, price, cover, stock } = parsed.value;
+    const { categoryId, bookCode, title, author, translator, publisher, publishedYear, description, price, cover, stock, weight, dimensions, pages, format } = parsed.value;
 
     const result = (await pool.execute(
-      `INSERT INTO books (category_id, title, author, description, price, cover, stock) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [categoryId, title, author || null, description || null, price, cover || null, stock],
+      `INSERT INTO books (category_id, book_code, title, author, translator, publisher, published_year, description, price, cover, stock, weight, dimensions, pages, format) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [categoryId, bookCode, title, author || null, translator, publisher, publishedYear, description || null, price, cover || null, stock, weight, dimensions, pages, format],
       { fullResult: true }
     )) as any;
 
     const insertId = Number(result.lastInsertId || result.insertId);
 
     const rawResult = await pool.execute(
-      `SELECT b.id, b.category_id, c.name AS category_name, b.title, b.author, b.description, b.price, b.cover, b.stock, b.created_at FROM books b LEFT JOIN categories c ON b.category_id = c.id WHERE b.id = ?`,
+      `SELECT b.id, b.category_id, c.name AS category_name, b.book_code, b.title, b.author, b.translator, b.publisher, b.published_year, b.description, b.price, b.cover, b.stock, b.weight, b.dimensions, b.pages, b.format, b.created_at FROM books b LEFT JOIN categories c ON b.category_id = c.id WHERE b.id = ?`,
       [insertId],
     );
 
@@ -983,24 +1072,32 @@ app.put("/api/admin/books/:id", async (req, res) => {
       return res.status(400).json({ message: parsed.error });
     }
 
-    const { categoryId, title, author, description, price, cover, stock } = parsed.value;
+    const { categoryId, bookCode, title, author, translator, publisher, publishedYear, description, price, cover, stock, weight, dimensions, pages, format } = parsed.value;
 
     await pool.execute(
-      `UPDATE books SET category_id = ?, title = ?, author = ?, description = ?, price = ?, cover = ?, stock = ? WHERE id = ?`,
+      `UPDATE books SET category_id = ?, book_code = ?, title = ?, author = ?, translator = ?, publisher = ?, published_year = ?, description = ?, price = ?, cover = ?, stock = ?, weight = ?, dimensions = ?, pages = ?, format = ? WHERE id = ?`,
       [
         categoryId,
+        bookCode,
         title,
         author || null,
+        translator,
+        publisher,
+        publishedYear,
         description || null,
         price,
         cover || null,
         stock,
+        weight,
+        dimensions,
+        pages,
+        format,
         bookId,
       ],
     );
 
     const rawResult = await pool.execute(
-      `SELECT b.id, b.category_id, c.name AS category_name, b.title, b.author, b.description, b.price, b.cover, b.stock, b.created_at FROM books b LEFT JOIN categories c ON b.category_id = c.id WHERE b.id = ?`,
+      `SELECT b.id, b.category_id, c.name AS category_name, b.book_code, b.title, b.author, b.translator, b.publisher, b.published_year, b.description, b.price, b.cover, b.stock, b.weight, b.dimensions, b.pages, b.format, b.created_at FROM books b LEFT JOIN categories c ON b.category_id = c.id WHERE b.id = ?`,
       [bookId],
     );
 

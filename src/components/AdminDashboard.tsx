@@ -12,22 +12,38 @@ interface AdminDashboardProps {
 
 interface BookFormState {
   categoryId: string;
+  bookCode: string;
   title: string;
   author: string;
+  translator: string;
+  publisher: string;
+  publishedYear: string;
   description: string;
   price: string;
   cover: string;
   stock: string;
+  weight: string;
+  dimensions: string;
+  pages: string;
+  format: string;
 }
 
 const emptyBookForm: BookFormState = {
   categoryId: '',
+  bookCode: '',
   title: '',
   author: '',
+  translator: '',
+  publisher: '',
+  publishedYear: '',
   description: '',
   price: '',
   cover: '',
   stock: '0',
+  weight: '',
+  dimensions: '',
+  pages: '',
+  format: '',
 };
 
 interface CategoryFormState {
@@ -59,6 +75,7 @@ export default function AdminDashboard({
   const [categoryForm, setCategoryForm] = useState<CategoryFormState>(emptyCategoryForm);
   const [editingCategoryId, setEditingCategoryId] = useState<number | null>(null);
   const [savingCategory, setSavingCategory] = useState(false);
+  const [adminTab, setAdminTab] = useState<'management' | 'inventory' | 'orders'>('management');
 
   async function loadAdminData() {
     if (!token) {
@@ -97,12 +114,20 @@ export default function AdminDashboard({
     setEditingBookId(book.id);
     setBookForm({
       categoryId: book.categoryId ? String(book.categoryId) : '',
+      bookCode: book.bookCode || '',
       title: book.title,
       author: book.author,
+      translator: book.translator || '',
+      publisher: book.publisher || '',
+      publishedYear: book.publishedYear ? String(book.publishedYear) : '',
       description: book.description,
       price: String(book.price),
       cover: book.cover,
       stock: String(book.stock),
+      weight: book.weight ? String(book.weight) : '',
+      dimensions: book.dimensions || '',
+      pages: book.pages ? String(book.pages) : '',
+      format: book.format || '',
     });
   }
 
@@ -126,10 +151,22 @@ export default function AdminDashboard({
         method: editingBookId ? 'PUT' : 'POST',
         token,
         body: {
-          ...bookForm,
           categoryId: bookForm.categoryId ? Number(bookForm.categoryId) : null,
+          bookCode: bookForm.bookCode || null,
+          title: bookForm.title,
+          author: bookForm.author || null,
+          translator: bookForm.translator || null,
+          publisher: bookForm.publisher || null,
+          publishedYear: bookForm.publishedYear ? Number(bookForm.publishedYear) : null,
+          description: bookForm.description,
+
           price: Number(bookForm.price.toString().replace(/[.,\s]/g, '')),
+          cover: bookForm.cover || null,
           stock: Number(bookForm.stock),
+          weight: bookForm.weight ? Number(bookForm.weight) : null,
+          dimensions: bookForm.dimensions || null,
+          pages: bookForm.pages ? Number(bookForm.pages) : null,
+          format: bookForm.format || null,
         },
       });
 
@@ -353,6 +390,40 @@ export default function AdminDashboard({
         </div>
       </section>
 
+      <div className="flex items-center gap-6 border-b border-stone-200 pb-1">
+        <button
+          onClick={() => setAdminTab('management')}
+          className={`pb-2 text-lg font-bold transition-colors ${
+            adminTab === 'management'
+              ? 'border-b-2 border-sky-500 text-sky-600'
+              : 'border-b-2 border-transparent text-stone-500 hover:text-stone-800'
+          }`}
+        >
+          Management
+        </button>
+        <button
+          onClick={() => setAdminTab('inventory')}
+          className={`pb-2 text-lg font-bold transition-colors ${
+            adminTab === 'inventory'
+              ? 'border-b-2 border-sky-500 text-sky-600'
+              : 'border-b-2 border-transparent text-stone-500 hover:text-stone-800'
+          }`}
+        >
+          Inventory
+        </button>
+        <button
+          onClick={() => setAdminTab('orders')}
+          className={`pb-2 text-lg font-bold transition-colors ${
+            adminTab === 'orders'
+              ? 'border-b-2 border-sky-500 text-sky-600'
+              : 'border-b-2 border-transparent text-stone-500 hover:text-stone-800'
+          }`}
+        >
+          Orders
+        </button>
+      </div>
+
+      {adminTab === 'management' && (
       <section className="grid gap-6 xl:grid-cols-[0.95fr_1.35fr]">
         <div className="space-y-6">
           <form
@@ -454,6 +525,140 @@ export default function AdminDashboard({
 
               <div>
                 <label className="mb-1 block text-sm font-medium text-stone-700">
+                  Book Code
+                </label>
+                <input
+                  className="w-full rounded-2xl border border-stone-300 px-4 py-3 outline-none transition focus:border-sky-500"
+                  value={bookForm.bookCode}
+                  onChange={(event) =>
+                    setBookForm((current) => ({
+                      ...current,
+                      bookCode: event.target.value,
+                    }))
+                  }
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-stone-700">
+                  Translator
+                </label>
+                <input
+                  className="w-full rounded-2xl border border-stone-300 px-4 py-3 outline-none transition focus:border-sky-500"
+                  value={bookForm.translator}
+                  onChange={(event) =>
+                    setBookForm((current) => ({
+                      ...current,
+                      translator: event.target.value,
+                    }))
+                  }
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-stone-700">
+                  Publisher
+                </label>
+                <input
+                  className="w-full rounded-2xl border border-stone-300 px-4 py-3 outline-none transition focus:border-sky-500"
+                  value={bookForm.publisher}
+                  onChange={(event) =>
+                    setBookForm((current) => ({
+                      ...current,
+                      publisher: event.target.value,
+                    }))
+                  }
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-stone-700">
+                  Published Year
+                </label>
+                <input
+                  type="number"
+                  className="w-full rounded-2xl border border-stone-300 px-4 py-3 outline-none transition focus:border-sky-500"
+                  value={bookForm.publishedYear}
+                  onChange={(event) =>
+                    setBookForm((current) => ({
+                      ...current,
+                      publishedYear: event.target.value,
+                    }))
+                  }
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-stone-700">
+                  Weight (g)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  className="w-full rounded-2xl border border-stone-300 px-4 py-3 outline-none transition focus:border-sky-500"
+                  value={bookForm.weight}
+                  onChange={(event) =>
+                    setBookForm((current) => ({
+                      ...current,
+                      weight: event.target.value,
+                    }))
+                  }
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-stone-700">
+                  Dimensions
+                </label>
+                <input
+                  className="w-full rounded-2xl border border-stone-300 px-4 py-3 outline-none transition focus:border-sky-500"
+                  placeholder="e.g., 24 x 15.5 x 2.5 cm"
+                  value={bookForm.dimensions}
+                  onChange={(event) =>
+                    setBookForm((current) => ({
+                      ...current,
+                      dimensions: event.target.value,
+                    }))
+                  }
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-stone-700">
+                  Pages
+                </label>
+                <input
+                  type="number"
+                  className="w-full rounded-2xl border border-stone-300 px-4 py-3 outline-none transition focus:border-sky-500"
+                  value={bookForm.pages}
+                  onChange={(event) =>
+                    setBookForm((current) => ({
+                      ...current,
+                      pages: event.target.value,
+                    }))
+                  }
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-stone-700">
+                  Format
+                </label>
+                <input
+                  className="w-full rounded-2xl border border-stone-300 px-4 py-3 outline-none transition focus:border-sky-500"
+                  placeholder="e.g., Bìa mềm"
+                  value={bookForm.format}
+                  onChange={(event) =>
+                    setBookForm((current) => ({
+                      ...current,
+                      format: event.target.value,
+                    }))
+                  }
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-stone-700">
                   Price
                 </label>
                 <input
@@ -506,6 +711,8 @@ export default function AdminDashboard({
                   }
                 />
               </div>
+
+
             </div>
 
             <button
@@ -520,72 +727,6 @@ export default function AdminDashboard({
                   : 'Create book'}
             </button>
           </form>
-
-          <div className="rounded-[2rem] border border-stone-200 bg-white p-6 shadow-sm">
-            <h2 className="text-2xl font-black text-stone-900">Customer management</h2>
-            <p className="mt-1 text-sm text-stone-500">
-              Review user details, order counts, and update admin access.
-            </p>
-
-            <div className="mt-5 max-h-[400px] space-y-4 overflow-y-auto pr-2">
-              {loading ? (
-                <div className="text-sm text-stone-500">Loading users...</div>
-              ) : (
-                users.map((entry) => (
-                  <div
-                    key={entry.id}
-                    className="rounded-3xl border border-stone-200 bg-stone-50 p-4"
-                  >
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                      <div>
-                        <div className="text-lg font-bold text-stone-900">
-                          {entry.fullName || entry.username}
-                        </div>
-                        <div className="text-sm text-stone-500">
-                          @{entry.username} {entry.email ? `• ${entry.email}` : ''}
-                        </div>
-                        <div className="mt-2 text-xs uppercase tracking-[0.2em] text-stone-400">
-                          Joined {formatDate(entry.createdAt)}
-                        </div>
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-3">
-                        <div className="rounded-full bg-white px-3 py-2 text-sm text-stone-700">
-                          Orders: <span className="font-semibold">{entry.orderCount}</span>
-                        </div>
-                        <div className="rounded-full bg-white px-3 py-2 text-sm text-stone-700">
-                          Spent: <span className="font-semibold">{formatCurrency(entry.totalSpent)}</span>
-                        </div>
-                        <button
-                          onClick={() =>
-                            void handleRoleChange(
-                              entry,
-                              entry.role === 'admin' ? 'customer' : 'admin'
-                            )
-                          }
-                          className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
-                            entry.role === 'admin'
-                              ? 'bg-amber-100 text-amber-800 hover:bg-amber-200'
-                              : 'bg-sky-100 text-sky-600 hover:bg-sky-200'
-                          }`}
-                        >
-                          {entry.role === 'admin' ? 'Set as customer' : 'Promote to admin'}
-                        </button>
-                        {user.id !== entry.id && (
-                          <button
-                            onClick={() => void handleDeleteUser(entry.id, entry.username)}
-                            className="rounded-full border border-red-200 px-4 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50"
-                          >
-                            Delete
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
         </div>
 
         <div className="space-y-6">
@@ -662,6 +803,77 @@ export default function AdminDashboard({
           </div>
 
           <div className="rounded-[2rem] border border-stone-200 bg-white p-6 shadow-sm">
+            <h2 className="text-2xl font-black text-stone-900">Customer management</h2>
+            <p className="mt-1 text-sm text-stone-500">
+              Review user details, order counts, and update admin access.
+            </p>
+
+            <div className="mt-5 max-h-[400px] space-y-4 overflow-y-auto pr-2">
+              {loading ? (
+                <div className="text-sm text-stone-500">Loading users...</div>
+              ) : (
+                users.map((entry) => (
+                  <div
+                    key={entry.id}
+                    className="rounded-3xl border border-stone-200 bg-stone-50 p-4"
+                  >
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                      <div>
+                        <div className="text-lg font-bold text-stone-900">
+                          {entry.fullName || entry.username}
+                        </div>
+                        <div className="text-sm text-stone-500">
+                          @{entry.username} {entry.email ? `• ${entry.email}` : ''}
+                        </div>
+                        <div className="mt-2 text-xs uppercase tracking-[0.2em] text-stone-400">
+                          Joined {formatDate(entry.createdAt)}
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-3">
+                        <div className="rounded-full bg-white px-3 py-2 text-sm text-stone-700">
+                          Orders: <span className="font-semibold">{entry.orderCount}</span>
+                        </div>
+                        <div className="rounded-full bg-white px-3 py-2 text-sm text-stone-700">
+                          Spent: <span className="font-semibold">{formatCurrency(entry.totalSpent)}</span>
+                        </div>
+                        <button
+                          onClick={() =>
+                            void handleRoleChange(
+                              entry,
+                              entry.role === 'admin' ? 'customer' : 'admin'
+                            )
+                          }
+                          className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
+                            entry.role === 'admin'
+                              ? 'bg-amber-100 text-amber-800 hover:bg-amber-200'
+                              : 'bg-sky-100 text-sky-600 hover:bg-sky-200'
+                          }`}
+                        >
+                          {entry.role === 'admin' ? 'Set as customer' : 'Promote to admin'}
+                        </button>
+                        {user.id !== entry.id && (
+                          <button
+                            onClick={() => void handleDeleteUser(entry.id, entry.username)}
+                            className="rounded-full border border-red-200 px-4 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50"
+                          >
+                            Delete
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+      )}
+
+      {adminTab === 'inventory' && (
+      <section>
+          <div className="rounded-[2rem] border border-stone-200 bg-white p-6 shadow-sm">
             <h2 className="text-2xl font-black text-stone-900">Inventory</h2>
             <p className="mt-1 text-sm text-stone-500">
               Edit or remove books currently shown in the storefront.
@@ -684,7 +896,14 @@ export default function AdminDashboard({
                       ) : null}
                     </div>
                     <div>
-                      <div className="font-bold text-stone-900">{book.title}</div>
+                      <div className="font-bold text-stone-900">
+                        {book.title}
+                        {book.bookCode && (
+                          <span className="ml-2 rounded bg-stone-200 px-1.5 py-0.5 font-mono text-[10px] text-stone-600">
+                            {book.bookCode}
+                          </span>
+                        )}
+                      </div>
                       <div className="text-sm text-stone-500">
                         {book.author}
                         {book.categoryName ? ` • ${book.categoryName}` : ''}
@@ -713,7 +932,11 @@ export default function AdminDashboard({
               ))}
             </div>
           </div>
+      </section>
+      )}
 
+      {adminTab === 'orders' && (
+      <section>
           <div className="rounded-[2rem] border border-stone-200 bg-white p-6 shadow-sm">
             <h2 className="text-2xl font-black text-stone-900">Purchased books</h2>
             <p className="mt-1 text-sm text-stone-500">
@@ -764,13 +987,24 @@ export default function AdminDashboard({
                       {order.items.map((item, index) => (
                         <div
                           key={`${order.id}-${item.bookId ?? index}`}
-                          className="flex flex-col gap-3 rounded-2xl bg-white p-4 md:flex-row md:items-center md:justify-between"
+                          className="flex flex-col gap-3 rounded-2xl border border-stone-100 bg-white p-3 shadow-sm transition-shadow hover:shadow-md md:flex-row md:items-center md:justify-between"
                         >
-                          <div>
-                            <div className="font-semibold text-stone-900">
-                              {item.title}
+                          <div className="flex items-center gap-4">
+                            <div className="h-16 w-12 shrink-0 overflow-hidden rounded-xl bg-stone-100 shadow-sm">
+                              {item.cover ? (
+                                <img
+                                  src={item.cover}
+                                  alt={item.title}
+                                  className="h-full w-full object-cover"
+                                />
+                              ) : null}
                             </div>
-                            <div className="text-sm text-stone-500">{item.author}</div>
+                            <div>
+                              <div className="font-semibold text-stone-900">
+                                {item.title}
+                              </div>
+                              <div className="text-sm text-stone-500">{item.author}</div>
+                            </div>
                           </div>
                           <div className="text-sm text-stone-600">
                             {item.quantity} x {formatCurrency(item.price)} ={' '}
@@ -786,8 +1020,8 @@ export default function AdminDashboard({
               )}
             </div>
           </div>
-        </div>
       </section>
+      )}
     </div>
   );
 }

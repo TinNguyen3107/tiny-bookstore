@@ -22,12 +22,20 @@ CREATE TABLE IF NOT EXISTS categories (
 CREATE TABLE IF NOT EXISTS books (
     id INT AUTO_INCREMENT PRIMARY KEY,
     category_id INT NULL,
+    book_code VARCHAR(50) NULL,
     title VARCHAR(255) NOT NULL,
     author VARCHAR(150) NULL,
+    translator VARCHAR(150) NULL,
+    publisher VARCHAR(150) NULL,
+    published_year INT NULL,
     description TEXT NULL,
     price DECIMAL(10, 2) NOT NULL,
     cover VARCHAR(500) NULL,
     stock INT NOT NULL DEFAULT 0,
+    weight DECIMAL(8, 2) NULL,
+    dimensions VARCHAR(50) NULL,
+    pages INT NULL,
+    format VARCHAR(100) NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_books_category
         FOREIGN KEY (category_id) REFERENCES categories(id)
