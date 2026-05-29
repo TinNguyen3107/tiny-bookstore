@@ -158,7 +158,7 @@ export default function BookDetailPage({
                       {formatCurrency(book.price)}
                     </div>
                     <div className="text-xs font-bold text-red-500">
-                      Ends in {formatSaleCountdown(saleInfo.remainingMs)}
+                      Kết thúc sau {formatSaleCountdown(saleInfo.remainingMs)}
                     </div>
                   </div>
                 )}

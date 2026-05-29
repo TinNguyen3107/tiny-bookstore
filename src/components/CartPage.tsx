@@ -87,8 +87,8 @@ export default function CartPage({
               key={item.bookId}
               className="rounded-[2rem] border border-stone-200 bg-white p-5 shadow-sm"
             >
-              <div className="flex flex-col gap-4 md:flex-row">
-                <div className="h-44 w-full overflow-hidden rounded-3xl bg-stone-100 md:w-36">
+              <div className="grid gap-5 lg:grid-cols-[160px_minmax(0,1fr)_190px] lg:items-start">
+                <div className="h-44 w-full overflow-hidden rounded-3xl bg-stone-100 lg:h-56">
                   {item.cover ? (
                     <img
                       src={item.cover}
@@ -102,7 +102,7 @@ export default function CartPage({
                   )}
                 </div>
 
-                <div className="flex flex-1 flex-col justify-between gap-4">
+                <div className="flex min-w-0 flex-col justify-between gap-5">
                   <div>
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
@@ -125,30 +125,14 @@ export default function CartPage({
                           )}
                         </div>
                       </div>
-                      <div className="text-right">
-                        <div className="text-sm text-stone-400">Unit price</div>
-                        {item.discountPercent && item.originalPrice ? (
-                          <div className="text-sm font-semibold text-stone-400 line-through">
-                            {formatCurrency(item.originalPrice)}
-                          </div>
-                        ) : null}
-                        <div className="text-lg font-bold text-stone-900">
-                          {formatCurrency(item.price)}
-                        </div>
-                        {item.discountPercent ? (
-                          <div className="text-xs font-bold text-red-500">
-                            -{item.discountPercent}% sale
-                          </div>
-                        ) : null}
-                      </div>
                     </div>
                     <p className="mt-3 text-sm text-stone-500">
                       Available stock: {item.stock}
                     </p>
                   </div>
 
-                  <div className="flex flex-wrap items-center justify-between gap-4">
-                    <div className="inline-flex items-center rounded-full border border-stone-200 bg-stone-50">
+                  <div className="flex flex-wrap items-center gap-4">
+                    <div className="inline-flex w-fit items-center rounded-full border border-stone-200 bg-stone-50">
                       <button
                         onClick={() =>
                           onQuantityChange(item.bookId, item.quantity - 1)
@@ -170,18 +154,40 @@ export default function CartPage({
                       </button>
                     </div>
 
-                    <div className="flex items-center gap-3">
-                      <div className="text-sm font-semibold text-stone-900">
-                        {formatCurrency(item.price * item.quantity)}
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-4 rounded-3xl bg-stone-50 p-4 lg:items-end lg:text-right">
+                  <div>
+                    <div className="text-sm text-stone-400">Unit price</div>
+                    {item.discountPercent && item.originalPrice ? (
+                      <div className="mt-1 text-sm font-semibold text-stone-400 line-through">
+                        {formatCurrency(item.originalPrice)}
                       </div>
-                      <button
-                        onClick={() => onRemove(item.bookId)}
-                        className="rounded-full border border-stone-200 px-4 py-2 text-sm font-medium text-stone-600 transition-colors hover:bg-stone-100 hover:text-stone-900"
-                      >
-                        Remove
-                      </button>
+                    ) : null}
+                    <div className="mt-1 text-lg font-bold text-stone-900">
+                      {formatCurrency(item.price)}
+                    </div>
+                    {item.discountPercent ? (
+                      <div className="text-xs font-bold text-red-500">
+                        -{item.discountPercent}% sale
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div className="border-t border-stone-200 pt-4 lg:w-full">
+                    <div className="text-sm text-stone-400">Line total</div>
+                    <div className="mt-1 text-lg font-black text-stone-900">
+                      {formatCurrency(item.price * item.quantity)}
                     </div>
                   </div>
+
+                  <button
+                    onClick={() => onRemove(item.bookId)}
+                    className="w-fit rounded-full border border-stone-200 bg-white px-4 py-2 text-sm font-medium text-stone-600 transition-colors hover:bg-stone-100 hover:text-stone-900"
+                  >
+                    Remove
+                  </button>
                 </div>
               </div>
             </article>

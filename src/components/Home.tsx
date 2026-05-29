@@ -91,11 +91,6 @@ export default function Home({
                 {outOfStock ? 'Out of stock' : `${book.stock} in stock`}
               </span>
             </div>
-            {saleInfo.isActive && (
-              <div className="absolute right-3 top-3 z-10 rounded-full bg-red-500 px-3 py-1 text-xs font-black text-white shadow-lg">
-                -{saleInfo.discountPercent}%
-              </div>
-            )}
 
             {book.cover ? (
               <img
@@ -133,13 +128,20 @@ export default function Home({
             </div>
 
             <div className="mt-auto pt-5">
-              <div className="mb-3 flex items-end justify-between gap-3">
-                <div>
+              <div className="mb-3 space-y-3">
+                <div className="min-w-0">
                   <div className="text-[10px] uppercase tracking-[0.24em] text-stone-400">
                     Price
                   </div>
-                  <div className="mt-1 text-2xl font-black tracking-tight text-stone-950 whitespace-nowrap">
-                    {formatCurrency(saleInfo.salePrice)}
+                  <div className="mt-1 flex items-center gap-2 whitespace-nowrap">
+                    <span className="text-xl font-black tracking-tight text-stone-950 xl:text-2xl">
+                      {formatCurrency(saleInfo.salePrice)}
+                    </span>
+                    {saleInfo.isActive && (
+                      <span className="shrink-0 rounded-full bg-red-500 px-2.5 py-1 text-xs font-black text-white">
+                        -{saleInfo.discountPercent}%
+                      </span>
+                    )}
                   </div>
                   {saleInfo.isActive && (
                     <div className="mt-1 space-y-1">
@@ -147,22 +149,11 @@ export default function Home({
                         {formatCurrency(book.price)}
                       </div>
                       <div className="text-xs font-bold text-red-500">
-                        Ends in {formatSaleCountdown(saleInfo.remainingMs)}
+                        Kết thúc sau {formatSaleCountdown(saleInfo.remainingMs)}
                       </div>
                     </div>
                   )}
                 </div>
-
-                {!outOfStock && (
-                  <div className="rounded-2xl bg-sky-50 px-3 py-2 text-right">
-                    <div className="text-[9px] uppercase tracking-[0.2em] text-sky-600">
-                      Ready
-                    </div>
-                    <div className="text-[13px] font-bold text-sky-700">
-                      View detail
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
           </div>
