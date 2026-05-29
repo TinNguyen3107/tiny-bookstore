@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { apiRequest } from '../api';
 import type { AdminUserSummary, Book, Category, Order, User } from '../types';
-import { formatCurrency, formatDate } from '../utils';
+import { formatCurrency, formatDate, getSaleInfo } from '../utils';
 
 interface AdminDashboardProps {
   user: User;
@@ -20,6 +20,8 @@ interface BookFormState {
   publishedYear: string;
   description: string;
   price: string;
+  discountPercent: string;
+  saleDurationDays: string;
   cover: string;
   stock: string;
   weight: string;
@@ -38,6 +40,8 @@ const emptyBookForm: BookFormState = {
   publishedYear: '',
   description: '',
   price: '',
+  discountPercent: '',
+  saleDurationDays: '',
   cover: '',
   stock: '0',
   weight: '',
@@ -111,6 +115,7 @@ export default function AdminDashboard({
   }, [token]);
 
   function startEdit(book: Book) {
+    const saleInfo = getSaleInfo(book);
     setEditingBookId(book.id);
     setBookForm({
       categoryId: book.categoryId ? String(book.categoryId) : '',
@@ -122,6 +127,10 @@ export default function AdminDashboard({
       publishedYear: book.publishedYear ? String(book.publishedYear) : '',
       description: book.description,
       price: String(book.price),
+      discountPercent: saleInfo.isActive ? String(saleInfo.discountPercent) : '',
+      saleDurationDays: saleInfo.isActive && book.saleEndsAt
+        ? String(Math.max(1, Math.ceil((new Date(book.saleEndsAt).getTime() - Date.now()) / (24 * 60 * 60 * 1000))))
+        : '',
       cover: book.cover,
       stock: String(book.stock),
       weight: book.weight ? String(book.weight) : '',
@@ -161,6 +170,8 @@ export default function AdminDashboard({
           description: bookForm.description,
 
           price: Number(bookForm.price.toString().replace(/[.,\s]/g, '')),
+          discountPercent: bookForm.discountPercent ? Number(bookForm.discountPercent) : null,
+          saleDurationDays: bookForm.saleDurationDays ? Number(bookForm.saleDurationDays) : null,
           cover: bookForm.cover || null,
           stock: Number(bookForm.stock),
           weight: bookForm.weight ? Number(bookForm.weight) : null,
@@ -692,6 +703,47 @@ export default function AdminDashboard({
                     }))
                   }
                   required
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-stone-700">
+                  Discount (%)
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="99"
+                  step="1"
+                  className="w-full rounded-2xl border border-stone-300 px-4 py-3 outline-none transition focus:border-sky-500"
+                  placeholder="e.g., 20"
+                  value={bookForm.discountPercent}
+                  onChange={(event) =>
+                    setBookForm((current) => ({
+                      ...current,
+                      discountPercent: event.target.value,
+                    }))
+                  }
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-stone-700">
+                  Sale duration (days)
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  className="w-full rounded-2xl border border-stone-300 px-4 py-3 outline-none transition focus:border-sky-500"
+                  placeholder="e.g., 3"
+                  value={bookForm.saleDurationDays}
+                  onChange={(event) =>
+                    setBookForm((current) => ({
+                      ...current,
+                      saleDurationDays: event.target.value,
+                    }))
+                  }
                 />
               </div>
 

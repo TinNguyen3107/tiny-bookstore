@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { ShoppingCart, ChevronDown, Search } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type { Book, CartItem, Category } from '../types';
-import { formatCurrency } from '../utils';
+import { formatCurrency, formatSaleCountdown, getSaleInfo } from '../utils';
 import { apiRequest } from '../api';
 
 interface HomeProps {
@@ -26,16 +26,26 @@ export default function Home({
   const [showCategories, setShowCategories] = useState(false);
   const [showFormats, setShowFormats] = useState(false);
   const [showPublishers, setShowPublishers] = useState(false);
+  const [showPrices, setShowPrices] = useState(false);
   const [showSort, setShowSort] = useState(false);
   const [visibleCount, setVisibleCount] = useState(8);
   const [searchQuery, setSearchQuery] = useState('');
 
   const [selectedFormat, setSelectedFormat] = useState<string | null>(null);
   const [selectedPublisher, setSelectedPublisher] = useState<string | null>(null);
+  const [selectedPriceRange, setSelectedPriceRange] = useState<string | null>(null);
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest' | null>(null);
+  const [, setClockTick] = useState(0);
 
   const availableFormats = Array.from(new Set(books.map(b => b.format).filter(Boolean))) as string[];
   const availablePublishers = Array.from(new Set(books.map(b => b.publisher).filter(Boolean))) as string[];
+  const priceRanges = [
+    { value: 'under-50000', label: 'Under 50,000 VND', min: 0, max: 50000 },
+    { value: '50000-100000', label: '50,000 - 100,000 VND', min: 50000, max: 100000 },
+    { value: '100000-200000', label: '100,000 - 200,000 VND', min: 100000, max: 200000 },
+    { value: '200000-500000', label: '200,000 - 500,000 VND', min: 200000, max: 500000 },
+    { value: 'over-500000', label: 'Over 500,000 VND', min: 500000, max: Infinity },
+  ];
 
   useEffect(() => {
     apiRequest<Category[]>('/api/categories')
@@ -43,10 +53,19 @@ export default function Home({
       .catch(console.error);
   }, []);
 
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setClockTick((current) => current + 1);
+    }, 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, []);
+
   const renderBookCard = (book: Book) => {
     const cartQuantity =
       cart.find((item) => item.bookId === book.id)?.quantity ?? 0;
     const outOfStock = book.stock <= 0;
+    const saleInfo = getSaleInfo(book);
 
     return (
       <article
@@ -72,6 +91,11 @@ export default function Home({
                 {outOfStock ? 'Out of stock' : `${book.stock} in stock`}
               </span>
             </div>
+            {saleInfo.isActive && (
+              <div className="absolute right-3 top-3 z-10 rounded-full bg-red-500 px-3 py-1 text-xs font-black text-white shadow-lg">
+                -{saleInfo.discountPercent}%
+              </div>
+            )}
 
             {book.cover ? (
               <img
@@ -115,8 +139,18 @@ export default function Home({
                     Price
                   </div>
                   <div className="mt-1 text-2xl font-black tracking-tight text-stone-950 whitespace-nowrap">
-                    {formatCurrency(book.price)}
+                    {formatCurrency(saleInfo.salePrice)}
                   </div>
+                  {saleInfo.isActive && (
+                    <div className="mt-1 space-y-1">
+                      <div className="text-sm font-semibold text-stone-400 line-through">
+                        {formatCurrency(book.price)}
+                      </div>
+                      <div className="text-xs font-bold text-red-500">
+                        Ends in {formatSaleCountdown(saleInfo.remainingMs)}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {!outOfStock && (
@@ -163,6 +197,15 @@ export default function Home({
   }
   if (selectedPublisher) {
     searchedBooks = searchedBooks.filter(b => b.publisher === selectedPublisher);
+  }
+  if (selectedPriceRange) {
+    const range = priceRanges.find((entry) => entry.value === selectedPriceRange);
+    if (range) {
+      searchedBooks = searchedBooks.filter((book) => {
+        const price = getSaleInfo(book).salePrice;
+        return price >= range.min && price < range.max;
+      });
+    }
   }
 
   if (sortOrder === 'newest') {
@@ -220,6 +263,7 @@ export default function Home({
                   setSearchQuery('');
                   setSelectedFormat(null);
                   setSelectedPublisher(null);
+                  setSelectedPriceRange(null);
                   setSortOrder(null);
                 }}
                 className={`pb-2 text-lg font-bold transition-colors ${
@@ -287,6 +331,7 @@ export default function Home({
                         setShowCategories(!showCategories);
                         setShowFormats(false);
                         setShowPublishers(false);
+                        setShowPrices(false);
                         setShowSort(false);
                       }}
                       className="flex items-center gap-2 rounded-full bg-sky-400 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-sky-500"
@@ -336,6 +381,7 @@ export default function Home({
                       setShowFormats(!showFormats);
                       setShowCategories(false);
                       setShowPublishers(false);
+                      setShowPrices(false);
                       setShowSort(false);
                     }}
                     className="flex items-center gap-2 rounded-full border border-stone-300 bg-white px-5 py-2.5 text-sm font-medium text-stone-700 transition-colors hover:bg-stone-50"
@@ -385,6 +431,7 @@ export default function Home({
                       setShowPublishers(!showPublishers);
                       setShowCategories(false);
                       setShowFormats(false);
+                      setShowPrices(false);
                       setShowSort(false);
                     }}
                     className="flex items-center gap-2 rounded-full border border-stone-300 bg-white px-5 py-2.5 text-sm font-medium text-stone-700 transition-colors hover:bg-stone-50"
@@ -430,10 +477,59 @@ export default function Home({
               <div className="relative inline-block w-fit">
                 <button
                   onClick={() => {
+                    setShowPrices(!showPrices);
+                    setShowCategories(false);
+                    setShowFormats(false);
+                    setShowPublishers(false);
+                    setShowSort(false);
+                  }}
+                  className="flex items-center gap-2 rounded-full border border-stone-300 bg-white px-5 py-2.5 text-sm font-medium text-stone-700 transition-colors hover:bg-stone-50"
+                >
+                  {priceRanges.find((range) => range.value === selectedPriceRange)?.label || 'All Prices'}
+                  <ChevronDown className={`h-4 w-4 transition-transform ${showPrices ? 'rotate-180' : ''}`} />
+                </button>
+
+                {showPrices && (
+                  <div className="absolute left-0 top-full z-20 mt-2 w-64 max-h-[320px] overflow-y-auto rounded-2xl border border-stone-200 bg-white p-2 shadow-xl">
+                    <button
+                      onClick={() => {
+                        setSelectedPriceRange(null);
+                        setShowPrices(false);
+                        setVisibleCount(8);
+                      }}
+                      className={`w-full rounded-xl px-4 py-2 text-left text-sm font-medium transition-colors ${
+                        selectedPriceRange === null ? 'bg-stone-100 text-stone-900' : 'text-stone-700 hover:bg-stone-50'
+                      }`}
+                    >
+                      All Prices
+                    </button>
+                    {priceRanges.map((range) => (
+                      <button
+                        key={range.value}
+                        onClick={() => {
+                          setSelectedPriceRange(range.value);
+                          setShowPrices(false);
+                          setVisibleCount(8);
+                        }}
+                        className={`w-full rounded-xl px-4 py-2 text-left text-sm font-medium transition-colors ${
+                          selectedPriceRange === range.value ? 'bg-stone-100 text-stone-900' : 'text-stone-700 hover:bg-stone-50'
+                        }`}
+                      >
+                        {range.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="relative inline-block w-fit">
+                <button
+                  onClick={() => {
                     setShowSort(!showSort);
                     setShowCategories(false);
                     setShowFormats(false);
                     setShowPublishers(false);
+                    setShowPrices(false);
                   }}
                   className="flex items-center gap-2 rounded-full border border-stone-300 bg-white px-5 py-2.5 text-sm font-medium text-stone-700 transition-colors hover:bg-stone-50"
                 >

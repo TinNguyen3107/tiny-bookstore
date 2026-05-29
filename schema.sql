@@ -30,6 +30,8 @@ CREATE TABLE IF NOT EXISTS books (
     published_year INT NULL,
     description TEXT NULL,
     price DECIMAL(10, 2) NOT NULL,
+    discount_percent DECIMAL(5, 2) NULL,
+    sale_ends_at TIMESTAMP NULL,
     cover VARCHAR(500) NULL,
     stock INT NOT NULL DEFAULT 0,
     weight DECIMAL(8, 2) NULL,

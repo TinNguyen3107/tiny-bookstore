@@ -63,6 +63,9 @@ export function validateBookData(data: any): { isValid: boolean; error?: string;
   const format = String(data.format ?? "").trim() || null;
   const price = Number(data.price);
   const stock = Number(data.stock);
+  const discountPercent = data.discountPercent ? Number(data.discountPercent) : null;
+  const saleDurationDays = data.saleDurationDays ? Number(data.saleDurationDays) : null;
+  const saleEndsAt = data.saleEndsAt ? String(data.saleEndsAt) : null;
 
   if (!title) return { isValid: false, error: "Tên sách không được để trống." };
   if (!Number.isFinite(price) || price <= 0)
@@ -72,9 +75,18 @@ export function validateBookData(data: any): { isValid: boolean; error?: string;
   if (categoryId !== null && (!Number.isInteger(categoryId) || categoryId <= 0))
     return { isValid: false, error: "Mã danh mục không hợp lệ." };
 
+  if (discountPercent !== null && (!Number.isFinite(discountPercent) || discountPercent <= 0 || discountPercent >= 100))
+    return { isValid: false, error: "Phan tram giam gia phai tu 1 den 99." };
+  if (saleDurationDays !== null && (!Number.isInteger(saleDurationDays) || saleDurationDays <= 0))
+    return { isValid: false, error: "So ngay giam gia phai la so nguyen duong." };
+  if (discountPercent === null && (saleDurationDays !== null || saleEndsAt !== null))
+    return { isValid: false, error: "Vui long nhap phan tram giam gia." };
+  if (discountPercent !== null && saleDurationDays === null && saleEndsAt === null)
+    return { isValid: false, error: "Vui long nhap thoi han giam gia." };
+
   return {
     isValid: true,
-    value: { categoryId, bookCode, title, author, translator, publisher, publishedYear, description, cover, price, stock, weight, dimensions, pages, format },
+    value: { categoryId, bookCode, title, author, translator, publisher, publishedYear, description, cover, price, stock, weight, dimensions, pages, format, discountPercent, saleDurationDays, saleEndsAt },
   };
 }
 

@@ -12,6 +12,8 @@ export interface Book {
   publishedYear?: number | null;
   description: string;
   price: number;
+  discountPercent?: number | null;
+  saleEndsAt?: string | null;
   cover: string;
   stock: number;
   weight?: number | null;
@@ -43,6 +45,8 @@ export interface CartItem {
   title: string;
   author: string;
   price: number;
+  originalPrice?: number | null;
+  discountPercent?: number | null;
   cover: string;
   stock: number;
   quantity: number;

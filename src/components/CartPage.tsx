@@ -127,9 +127,19 @@ export default function CartPage({
                       </div>
                       <div className="text-right">
                         <div className="text-sm text-stone-400">Unit price</div>
+                        {item.discountPercent && item.originalPrice ? (
+                          <div className="text-sm font-semibold text-stone-400 line-through">
+                            {formatCurrency(item.originalPrice)}
+                          </div>
+                        ) : null}
                         <div className="text-lg font-bold text-stone-900">
                           {formatCurrency(item.price)}
                         </div>
+                        {item.discountPercent ? (
+                          <div className="text-xs font-bold text-red-500">
+                            -{item.discountPercent}% sale
+                          </div>
+                        ) : null}
                       </div>
                     </div>
                     <p className="mt-3 text-sm text-stone-500">

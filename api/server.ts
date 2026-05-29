@@ -77,6 +77,8 @@ interface BookRow {
   published_year: number | null;
   description: string | null;
   price: string | number;
+  discount_percent: string | number | null;
+  sale_ends_at: Date | string | null;
   cover: string | null;
   stock: number;
   weight: number | null;
@@ -98,6 +100,8 @@ interface PublicBook {
   publishedYear?: number | null;
   description: string;
   price: number;
+  discountPercent?: number | null;
+  saleEndsAt?: string | null;
   cover: string;
   stock: number;
   weight?: number | null;
@@ -237,6 +241,8 @@ function serializeBook(book: BookRow): PublicBook {
     publishedYear: book.published_year ?? null,
     description: book.description ?? "",
     price: Number(book.price),
+    discountPercent: book.discount_percent === null || book.discount_percent === undefined ? null : Number(book.discount_percent),
+    saleEndsAt: book.sale_ends_at ? new Date(book.sale_ends_at).toISOString() : null,
     cover: book.cover ?? "",
     stock: Number(book.stock),
     weight: book.weight ?? null,
@@ -245,6 +251,23 @@ function serializeBook(book: BookRow): PublicBook {
     format: book.format ?? null,
     createdAt: new Date(book.created_at).toISOString(),
   };
+}
+
+function getActiveBookPrice(book: BookRow) {
+  const price = Number(book.price);
+  const discountPercent = Number(book.discount_percent ?? 0);
+  const saleEndsAt = book.sale_ends_at ? new Date(book.sale_ends_at).getTime() : 0;
+
+  if (
+    discountPercent > 0 &&
+    discountPercent < 100 &&
+    Number.isFinite(saleEndsAt) &&
+    saleEndsAt > Date.now()
+  ) {
+    return Math.round((price * (100 - discountPercent)) / 100);
+  }
+
+  return price;
 }
 
 async function columnExists(tableName: string, columnName: string) {
@@ -399,6 +422,16 @@ async function setupDatabase() {
     "format",
     "ALTER TABLE books ADD COLUMN format VARCHAR(100) NULL AFTER pages",
   );
+  await ensureColumn(
+    "books",
+    "discount_percent",
+    "ALTER TABLE books ADD COLUMN discount_percent DECIMAL(5, 2) NULL AFTER price",
+  );
+  await ensureColumn(
+    "books",
+    "sale_ends_at",
+    "ALTER TABLE books ADD COLUMN sale_ends_at TIMESTAMP NULL AFTER discount_percent",
+  );
 
   await pool.execute(`
     CREATE TABLE IF NOT EXISTS orders (
@@ -511,7 +544,7 @@ async function requireAdmin(req: express.Request, res: express.Response) {
 async function fetchBooks() {
   const rawResult = await pool.execute(
     `
-      SELECT b.id, b.category_id, c.name AS category_name, b.book_code, b.title, b.author, b.translator, b.publisher, b.published_year, b.description, b.price, b.cover, b.stock, b.weight, b.dimensions, b.pages, b.format, b.created_at
+      SELECT b.id, b.category_id, c.name AS category_name, b.book_code, b.title, b.author, b.translator, b.publisher, b.published_year, b.description, b.price, b.discount_percent, b.sale_ends_at, b.cover, b.stock, b.weight, b.dimensions, b.pages, b.format, b.created_at
       FROM books b
       LEFT JOIN categories c ON b.category_id = c.id
       ORDER BY b.created_at DESC, b.id DESC
@@ -782,7 +815,7 @@ app.get("/api/books/:id", async (req, res) => {
     }
 
     const rawResult = await pool.execute(
-      `SELECT b.id, b.category_id, c.name AS category_name, b.book_code, b.title, b.author, b.translator, b.publisher, b.published_year, b.description, b.price, b.cover, b.stock, b.weight, b.dimensions, b.pages, b.format, b.created_at FROM books b LEFT JOIN categories c ON b.category_id = c.id WHERE b.id = ? LIMIT 1`,
+      `SELECT b.id, b.category_id, c.name AS category_name, b.book_code, b.title, b.author, b.translator, b.publisher, b.published_year, b.description, b.price, b.discount_percent, b.sale_ends_at, b.cover, b.stock, b.weight, b.dimensions, b.pages, b.format, b.created_at FROM books b LEFT JOIN categories c ON b.category_id = c.id WHERE b.id = ? LIMIT 1`,
       [bookId],
     );
 
@@ -818,7 +851,7 @@ app.post("/api/orders", async (req, res) => {
     tx = await pool.begin();
 
     const rawBooks = await tx.execute(
-      `SELECT b.id, b.category_id, c.name AS category_name, b.book_code, b.title, b.author, b.translator, b.publisher, b.published_year, b.description, b.price, b.cover, b.stock, b.weight, b.dimensions, b.pages, b.format, b.created_at FROM books b LEFT JOIN categories c ON b.category_id = c.id WHERE b.id IN (${placeholders})`,
+      `SELECT b.id, b.category_id, c.name AS category_name, b.book_code, b.title, b.author, b.translator, b.publisher, b.published_year, b.description, b.price, b.discount_percent, b.sale_ends_at, b.cover, b.stock, b.weight, b.dimensions, b.pages, b.format, b.created_at FROM books b LEFT JOIN categories c ON b.category_id = c.id WHERE b.id IN (${placeholders})`,
       bookIds,
     );
     const bookRows = getRows<BookRow>(rawBooks);
@@ -838,7 +871,7 @@ app.post("/api/orders", async (req, res) => {
         throw new Error(`Only ${book.stock} copies left for "${book.title}"`);
       }
 
-      const price = Number(book.price);
+      const price = getActiveBookPrice(book);
       totalAmount += price * quantity;
       orderItems.push({ book, quantity, price });
     }
@@ -1030,18 +1063,21 @@ app.post("/api/admin/books", async (req, res) => {
       return res.status(400).json({ message: parsed.error });
     }
 
-    const { categoryId, bookCode, title, author, translator, publisher, publishedYear, description, price, cover, stock, weight, dimensions, pages, format } = parsed.value;
+    const { categoryId, bookCode, title, author, translator, publisher, publishedYear, description, price, cover, stock, weight, dimensions, pages, format, discountPercent, saleDurationDays } = parsed.value;
+    const saleEndsAt = discountPercent && saleDurationDays
+      ? new Date(Date.now() + saleDurationDays * 24 * 60 * 60 * 1000)
+      : null;
 
     const result = (await pool.execute(
-      `INSERT INTO books (category_id, book_code, title, author, translator, publisher, published_year, description, price, cover, stock, weight, dimensions, pages, format) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [categoryId, bookCode, title, author || null, translator, publisher, publishedYear, description || null, price, cover || null, stock, weight, dimensions, pages, format],
+      `INSERT INTO books (category_id, book_code, title, author, translator, publisher, published_year, description, price, discount_percent, sale_ends_at, cover, stock, weight, dimensions, pages, format) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [categoryId, bookCode, title, author || null, translator, publisher, publishedYear, description || null, price, discountPercent, saleEndsAt, cover || null, stock, weight, dimensions, pages, format],
       { fullResult: true }
     )) as any;
 
     const insertId = Number(result.lastInsertId || result.insertId);
 
     const rawResult = await pool.execute(
-      `SELECT b.id, b.category_id, c.name AS category_name, b.book_code, b.title, b.author, b.translator, b.publisher, b.published_year, b.description, b.price, b.cover, b.stock, b.weight, b.dimensions, b.pages, b.format, b.created_at FROM books b LEFT JOIN categories c ON b.category_id = c.id WHERE b.id = ?`,
+      `SELECT b.id, b.category_id, c.name AS category_name, b.book_code, b.title, b.author, b.translator, b.publisher, b.published_year, b.description, b.price, b.discount_percent, b.sale_ends_at, b.cover, b.stock, b.weight, b.dimensions, b.pages, b.format, b.created_at FROM books b LEFT JOIN categories c ON b.category_id = c.id WHERE b.id = ?`,
       [insertId],
     );
 
@@ -1072,10 +1108,13 @@ app.put("/api/admin/books/:id", async (req, res) => {
       return res.status(400).json({ message: parsed.error });
     }
 
-    const { categoryId, bookCode, title, author, translator, publisher, publishedYear, description, price, cover, stock, weight, dimensions, pages, format } = parsed.value;
+    const { categoryId, bookCode, title, author, translator, publisher, publishedYear, description, price, cover, stock, weight, dimensions, pages, format, discountPercent, saleDurationDays, saleEndsAt: existingSaleEndsAt } = parsed.value;
+    const saleEndsAt = discountPercent
+      ? (saleDurationDays ? new Date(Date.now() + saleDurationDays * 24 * 60 * 60 * 1000) : new Date(existingSaleEndsAt))
+      : null;
 
     await pool.execute(
-      `UPDATE books SET category_id = ?, book_code = ?, title = ?, author = ?, translator = ?, publisher = ?, published_year = ?, description = ?, price = ?, cover = ?, stock = ?, weight = ?, dimensions = ?, pages = ?, format = ? WHERE id = ?`,
+      `UPDATE books SET category_id = ?, book_code = ?, title = ?, author = ?, translator = ?, publisher = ?, published_year = ?, description = ?, price = ?, discount_percent = ?, sale_ends_at = ?, cover = ?, stock = ?, weight = ?, dimensions = ?, pages = ?, format = ? WHERE id = ?`,
       [
         categoryId,
         bookCode,
@@ -1086,6 +1125,8 @@ app.put("/api/admin/books/:id", async (req, res) => {
         publishedYear,
         description || null,
         price,
+        discountPercent,
+        saleEndsAt,
         cover || null,
         stock,
         weight,
@@ -1097,7 +1138,7 @@ app.put("/api/admin/books/:id", async (req, res) => {
     );
 
     const rawResult = await pool.execute(
-      `SELECT b.id, b.category_id, c.name AS category_name, b.book_code, b.title, b.author, b.translator, b.publisher, b.published_year, b.description, b.price, b.cover, b.stock, b.weight, b.dimensions, b.pages, b.format, b.created_at FROM books b LEFT JOIN categories c ON b.category_id = c.id WHERE b.id = ?`,
+      `SELECT b.id, b.category_id, c.name AS category_name, b.book_code, b.title, b.author, b.translator, b.publisher, b.published_year, b.description, b.price, b.discount_percent, b.sale_ends_at, b.cover, b.stock, b.weight, b.dimensions, b.pages, b.format, b.created_at FROM books b LEFT JOIN categories c ON b.category_id = c.id WHERE b.id = ?`,
       [bookId],
     );
 

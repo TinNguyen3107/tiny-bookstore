@@ -9,6 +9,7 @@ import Home from './components/Home';
 import Navbar from './components/Navbar';
 import ProfilePage from './components/ProfilePage';
 import type { Book, CartItem, Order, User } from './types';
+import { getSaleInfo } from './utils';
 
 function readStoredCart() {
   try {
@@ -95,7 +96,11 @@ export default function App() {
             format: latestBook.format,
             title: latestBook.title,
             author: latestBook.author,
-            price: latestBook.price,
+            price: getSaleInfo(latestBook).salePrice,
+            originalPrice: latestBook.price,
+            discountPercent: getSaleInfo(latestBook).isActive
+              ? getSaleInfo(latestBook).discountPercent
+              : null,
             cover: latestBook.cover,
             stock: latestBook.stock,
             quantity: Math.min(item.quantity, latestBook.stock),
@@ -123,6 +128,7 @@ export default function App() {
       const existing = currentCart.find((item) => item.bookId === book.id);
 
       if (!existing) {
+        const saleInfo = getSaleInfo(book);
         return [
           ...currentCart,
           {
@@ -131,7 +137,9 @@ export default function App() {
             format: book.format,
             title: book.title,
             author: book.author,
-            price: book.price,
+            price: saleInfo.salePrice,
+            originalPrice: book.price,
+            discountPercent: saleInfo.isActive ? saleInfo.discountPercent : null,
             cover: book.cover,
             stock: book.stock,
             quantity: 1,
@@ -143,7 +151,9 @@ export default function App() {
         item.bookId === book.id
           ? {
               ...item,
-              price: book.price,
+              price: getSaleInfo(book).salePrice,
+              originalPrice: book.price,
+              discountPercent: getSaleInfo(book).isActive ? getSaleInfo(book).discountPercent : null,
               stock: book.stock,
               quantity: Math.min(item.quantity + 1, book.stock),
             }

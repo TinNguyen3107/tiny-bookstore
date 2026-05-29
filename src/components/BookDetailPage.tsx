@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { apiRequest } from '../api';
 import type { Book } from '../types';
-import { formatCurrency } from '../utils';
+import { formatCurrency, formatSaleCountdown, getSaleInfo } from '../utils';
 
 interface BookDetailPageProps {
   books: Book[];
@@ -18,6 +18,15 @@ export default function BookDetailPage({
   const [book, setBook] = useState<Book | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [, setClockTick] = useState(0);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setClockTick((current) => current + 1);
+    }, 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, []);
 
   useEffect(() => {
     const bookId = Number(id);
@@ -80,6 +89,7 @@ export default function BookDetailPage({
   }
 
   const outOfStock = book.stock <= 0;
+  const saleInfo = getSaleInfo(book);
 
   return (
     <div className="space-y-8">
@@ -93,6 +103,11 @@ export default function BookDetailPage({
       <section className="overflow-hidden rounded-[2rem] border border-stone-200 bg-white shadow-sm">
         <div className="grid gap-0 lg:grid-cols-[0.84fr_1.16fr]">
           <div className="relative min-h-[340px] bg-stone-100">
+            {saleInfo.isActive && (
+              <div className="absolute left-4 top-4 z-10 rounded-full bg-red-500 px-4 py-2 text-sm font-black text-white shadow-lg">
+                -{saleInfo.discountPercent}%
+              </div>
+            )}
             {book.cover ? (
               <img
                 src={book.cover}
@@ -135,8 +150,18 @@ export default function BookDetailPage({
                   Price
                 </div>
                 <div className="mt-2 text-2xl font-black text-stone-950">
-                  {formatCurrency(book.price)}
+                  {formatCurrency(saleInfo.salePrice)}
                 </div>
+                {saleInfo.isActive && (
+                  <div className="mt-2 space-y-1">
+                    <div className="text-sm font-semibold text-stone-400 line-through">
+                      {formatCurrency(book.price)}
+                    </div>
+                    <div className="text-xs font-bold text-red-500">
+                      Ends in {formatSaleCountdown(saleInfo.remainingMs)}
+                    </div>
+                  </div>
+                )}
               </div>
               <div className="rounded-3xl bg-stone-50 p-4">
                 <div className="text-xs uppercase tracking-[0.24em] text-stone-400">
